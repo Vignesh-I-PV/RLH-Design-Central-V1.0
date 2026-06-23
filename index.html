@@ -6,33 +6,44 @@
   <title>Network Design — Operations Module</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     #root { height: 100vh; }
     #loading {
       display: flex; flex-direction: column; align-items: center;
-      justify-content: center; height: 100vh; gap: 14px;
-      color: #6b7280; font-size: 14px;
+      justify-content: center; height: 100vh; gap: 16px; color: #6b7280; font-size: 14px;
     }
     .spinner {
       width: 36px; height: 36px; border: 3px solid #e5e9f0;
       border-top-color: #2d6af6; border-radius: 50%;
-      animation: spin .8s linear infinite;
+      animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div id="loading"><div class="spinner"></div><span>Loading…</span></div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <span>Loading Network Design Module…</span>
+  </div>
   <div id="root" style="display:none"></div>
 
+  <!-- React 18 (UMD — no build step needed) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel standalone — transpiles JSX in the browser -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 
   <script type="text/babel" data-presets="react">
+    /* ── Make React hooks available as plain globals ── */
+    const {
+      useState, useCallback, useMemo, useEffect,
+      useRef, createContext, useContext
+    } = React;
 
-// React hooks available as globals via UMD build
-    const { useState, useCallback, useMemo, useEffect, useRef, createContext, useContext } = React;
+
+// React hooks injected as globals below
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const C = {
@@ -112,9 +123,9 @@ const DESIGN_SEEDS = [
     metrics:{coveragePct:100, cps:18.4, utilPct:76, totalRoutes:3,
       vehicleBreakdown:{"17ft":2,"Bolero":1}, totalDistance:52, totalCost:4284},
     rows:[
-      {rowId:"r1",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-001",segment:"LMSC-BLR-01 → LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:18,tp:5,utilPct:76},
-      {rowId:"r2",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-002",segment:"LMSC-BLR-01 → LMDC-BLR-002",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.5,routeDistanceKm:22,cps:22,tp:4,utilPct:68},
-      {rowId:"r3",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-003",segment:"LMSC-BLR-01 → LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14,tp:3,utilPct:82},
+      {rowId:"r1",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-001",segment:"LMSC-BLR-01 LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:18,tp:5,utilPct:76},
+      {rowId:"r2",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-002",segment:"LMSC-BLR-01 LMDC-BLR-002",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.5,routeDistanceKm:22,cps:22,tp:4,utilPct:68},
+      {rowId:"r3",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-003",segment:"LMSC-BLR-01 LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14,tp:3,utilPct:82},
     ],
   },
   {
@@ -126,9 +137,9 @@ const DESIGN_SEEDS = [
     metrics:{coveragePct:100, cps:20.1, utilPct:88, totalRoutes:3,
       vehicleBreakdown:{"17ft":2,"Bolero":1}, totalDistance:52, totalCost:4680},
     rows:[
-      {rowId:"r1",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-001",segment:"LMSC-BLR-01 → LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:19,tp:8,utilPct:92},
-      {rowId:"r2",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-002",segment:"LMSC-BLR-01 → LMDC-BLR-002",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.5,routeDistanceKm:22,cps:22,tp:5,utilPct:88},
-      {rowId:"r3",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-003",segment:"LMSC-BLR-01 → LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14,tp:3,utilPct:35},
+      {rowId:"r1",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-001",segment:"LMSC-BLR-01 LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:19,tp:8,utilPct:92},
+      {rowId:"r2",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-002",segment:"LMSC-BLR-01 LMDC-BLR-002",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.5,routeDistanceKm:22,cps:22,tp:5,utilPct:88},
+      {rowId:"r3",lmscCode:"LMSC-BLR-01",lmdcCode:"LMDC-BLR-003",segment:"LMSC-BLR-01 LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14,tp:3,utilPct:35},
     ],
   },
   {
@@ -140,9 +151,9 @@ const DESIGN_SEEDS = [
     metrics:{coveragePct:100, cps:21.6, utilPct:74, totalRoutes:3,
       vehicleBreakdown:{"19ft":2,"17ft":1}, totalDistance:48, totalCost:6204},
     rows:[
-      {rowId:"r1",lmscCode:"LMSC-HYD-01",lmdcCode:"LMDC-HYD-001",segment:"LMSC-HYD-01 → LMDC-HYD-001",vehicleType:"19ft",vehicleCount:5,tripFrequency:"Daily",transitHours:1.1,routeDistanceKm:14,cps:20,tp:5,utilPct:74},
-      {rowId:"r2",lmscCode:"LMSC-HYD-01",lmdcCode:"LMDC-HYD-002",segment:"LMSC-HYD-01 → LMDC-HYD-002",vehicleType:"19ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.4,routeDistanceKm:20,cps:24,tp:4,utilPct:78},
-      {rowId:"r3",lmscCode:"LMSC-HYD-01",lmdcCode:"LMDC-HYD-003",segment:"LMSC-HYD-01 → LMDC-HYD-003",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.3,routeDistanceKm:14,cps:21,tp:6,utilPct:62},
+      {rowId:"r1",lmscCode:"LMSC-HYD-01",lmdcCode:"LMDC-HYD-001",segment:"LMSC-HYD-01 LMDC-HYD-001",vehicleType:"19ft",vehicleCount:5,tripFrequency:"Daily",transitHours:1.1,routeDistanceKm:14,cps:20,tp:5,utilPct:74},
+      {rowId:"r2",lmscCode:"LMSC-HYD-01",lmdcCode:"LMDC-HYD-002",segment:"LMSC-HYD-01 LMDC-HYD-002",vehicleType:"19ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.4,routeDistanceKm:20,cps:24,tp:4,utilPct:78},
+      {rowId:"r3",lmscCode:"LMSC-HYD-01",lmdcCode:"LMDC-HYD-003",segment:"LMSC-HYD-01 LMDC-HYD-003",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.3,routeDistanceKm:14,cps:21,tp:6,utilPct:62},
     ],
   },
   {
@@ -154,10 +165,10 @@ const DESIGN_SEEDS = [
     metrics:{coveragePct:67, cps:28.2, utilPct:71, totalRoutes:2,
       vehicleBreakdown:{"32ft MXL":1,"Bolero":1}, totalDistance:42, totalCost:8460},
     rows:[
-      {rowId:"r1",lmscCode:"LMSC-DEL-01",lmdcCode:"LMDC-DEL-001",segment:"LMSC-DEL-01 → LMDC-DEL-001",vehicleType:"32ft MXL",vehicleCount:2,tripFrequency:"Daily",transitHours:0.8,routeDistanceKm:8,cps:30,tp:3,utilPct:71},
-      {rowId:"r2",lmscCode:"LMSC-DEL-01",lmdcCode:"LMDC-DEL-002",segment:"LMSC-DEL-01 → LMDC-DEL-002",vehicleType:"Bolero",vehicleCount:6,tripFrequency:"Daily",transitHours:1.4,routeDistanceKm:34,cps:26,tp:9,utilPct:84},
+      {rowId:"r1",lmscCode:"LMSC-DEL-01",lmdcCode:"LMDC-DEL-001",segment:"LMSC-DEL-01 LMDC-DEL-001",vehicleType:"32ft MXL",vehicleCount:2,tripFrequency:"Daily",transitHours:0.8,routeDistanceKm:8,cps:30,tp:3,utilPct:71},
+      {rowId:"r2",lmscCode:"LMSC-DEL-01",lmdcCode:"LMDC-DEL-002",segment:"LMSC-DEL-01 LMDC-DEL-002",vehicleType:"Bolero",vehicleCount:6,tripFrequency:"Daily",transitHours:1.4,routeDistanceKm:34,cps:26,tp:9,utilPct:84},
     ],
-    // LMDC-DEL-003 not in output → coverage gap
+    // LMDC-DEL-003 not in output coverage gap
   },
 ];
 
@@ -167,11 +178,11 @@ const INIT_ALIGNMENTS = [
     status:"FeedbackReceived",acknowledged:false,finalisedOn:null,sendBackCount:0,versionLog:[],sendBackNote:null,
     approvers:[{name:"Ravi Kumar",role:"Ops Lead – South",submitted:true},{name:"Priya S",role:"Hub Manager – BLR",submitted:true}],
     rows:[
-      {rowId:"r1",segment:"LMSC-BLR-01 → LMDC-BLR-001",lmdcCode:"LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:18},
-      {rowId:"r2",segment:"LMSC-BLR-01 → LMDC-BLR-002",lmdcCode:"LMDC-BLR-002",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.5,routeDistanceKm:22,cps:22},
-      {rowId:"r3",segment:"LMSC-BLR-01 → LMDC-BLR-003",lmdcCode:"LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14},
-      {rowId:"r4",segment:"LMSC-HYD-01 → LMDC-HYD-001",lmdcCode:"LMDC-HYD-001",vehicleType:"19ft",vehicleCount:5,tripFrequency:"Daily",transitHours:1.1,routeDistanceKm:14,cps:20},
-      {rowId:"r5",segment:"LMSC-HYD-01 → LMDC-HYD-002",lmdcCode:"LMDC-HYD-002",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.4,routeDistanceKm:20,cps:21},
+      {rowId:"r1",segment:"LMSC-BLR-01 LMDC-BLR-001",lmdcCode:"LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:18},
+      {rowId:"r2",segment:"LMSC-BLR-01 LMDC-BLR-002",lmdcCode:"LMDC-BLR-002",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.5,routeDistanceKm:22,cps:22},
+      {rowId:"r3",segment:"LMSC-BLR-01 LMDC-BLR-003",lmdcCode:"LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14},
+      {rowId:"r4",segment:"LMSC-HYD-01 LMDC-HYD-001",lmdcCode:"LMDC-HYD-001",vehicleType:"19ft",vehicleCount:5,tripFrequency:"Daily",transitHours:1.1,routeDistanceKm:14,cps:20},
+      {rowId:"r5",segment:"LMSC-HYD-01 LMDC-HYD-002",lmdcCode:"LMDC-HYD-002",vehicleType:"17ft",vehicleCount:3,tripFrequency:"Daily",transitHours:1.4,routeDistanceKm:20,cps:21},
     ],
     rowFeedback:[
       {rowId:"r1",approverName:"Ravi Kumar",decision:"Aligned",remark:"Route looks good.",suggestedVehicleType:"17ft",suggestedCount:4,suggestedDist:12,suggestedCps:18},
@@ -187,8 +198,8 @@ const INIT_ALIGNMENTS = [
     status:"Pending",acknowledged:false,finalisedOn:null,sendBackCount:0,versionLog:[],sendBackNote:null,
     approvers:[{name:"Anand Rao",role:"Regional Ops Head – West",submitted:false},{name:"Suresh Mehta",role:"Hub Manager – Mumbai GW",submitted:false}],
     rows:[
-      {rowId:"r1",segment:"FMSC-DEL-01 → BOM-GW-01",lmdcCode:null,vehicleType:"32ft MXL",vehicleCount:4,tripFrequency:"Daily",transitHours:22,routeDistanceKm:1410,cps:42},
-      {rowId:"r2",segment:"BOM-GW-01 → LMSC-PUN-01",lmdcCode:null,vehicleType:"24ft SXL",vehicleCount:5,tripFrequency:"Daily",transitHours:4,routeDistanceKm:150,cps:22},
+      {rowId:"r1",segment:"FMSC-DEL-01 BOM-GW-01",lmdcCode:null,vehicleType:"32ft MXL",vehicleCount:4,tripFrequency:"Daily",transitHours:22,routeDistanceKm:1410,cps:42},
+      {rowId:"r2",segment:"BOM-GW-01 LMSC-PUN-01",lmdcCode:null,vehicleType:"24ft SXL",vehicleCount:5,tripFrequency:"Daily",transitHours:4,routeDistanceKm:150,cps:22},
     ],
     rowFeedback:[],plannerDecisions:{},
   },
@@ -198,8 +209,8 @@ const INIT_ALIGNMENTS = [
     versionLog:[{version:"South RLH Design Q2 — v2 (revised)",finalisedOn:"2026-04-13",acceptedRows:2,rejectedRows:0}],
     approvers:[{name:"Kavita J",role:"Ops Lead – South",submitted:true}],
     rows:[
-      {rowId:"r1",segment:"LMSC-BLR-01 → LMDC-BLR-001",lmdcCode:"LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:18},
-      {rowId:"r2",segment:"LMSC-BLR-01 → LMDC-BLR-003",lmdcCode:"LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14},
+      {rowId:"r1",segment:"LMSC-BLR-01 LMDC-BLR-001",lmdcCode:"LMDC-BLR-001",vehicleType:"17ft",vehicleCount:4,tripFrequency:"Daily",transitHours:1.0,routeDistanceKm:12,cps:18},
+      {rowId:"r2",segment:"LMSC-BLR-01  LMDC-BLR-003",lmdcCode:"LMDC-BLR-003",vehicleType:"Bolero",vehicleCount:2,tripFrequency:"Daily",transitHours:1.2,routeDistanceKm:18,cps:14},
     ],
     rowFeedback:[
       {rowId:"r1",approverName:"Kavita J",decision:"Aligned",remark:"Confirmed.",suggestedVehicleType:"17ft",suggestedCount:4,suggestedDist:12,suggestedCps:18},
@@ -212,24 +223,56 @@ const INIT_ALIGNMENTS = [
 // ─── Shared UI primitives ─────────────────────────────────────────────────
 const Badge = ({ children, color="default", small=false }) => {
   const map = {
-    default:{bg:"#e9ecf2",fg:"#4b5563"},primary:{bg:C.primaryLight,fg:C.primary},
-    success:{bg:C.accentLight,fg:"#065f46"},warning:{bg:C.warningLight,fg:"#92400e"},
-    danger:{bg:C.dangerLight,fg:"#991b1b"},purple:{bg:"#ede9fe",fg:"#6d28d9"},
-    outline:{bg:"transparent",fg:"#4b5563",border:`1px solid ${C.border}`},
+    default:  { bg:"#f3f4f6", fg:"#4b5563" },
+    primary:  { bg:"#eff6ff", fg:"#2563eb" },
+    success:  { bg:"#f0fdf4", fg:"#16a34a" },
+    warning:  { bg:"#fffbeb", fg:"#b45309" },
+    danger:   { bg:"#fef2f2", fg:"#dc2626" },
+    purple:   { bg:"#f5f3ff", fg:"#7c3aed" },
+    outline:  { bg:"transparent", fg:"#4b5563", border:`1px solid ${C.border}` },
   };
-  const {bg,fg,border} = map[color]||map.default;
-  return <span style={{display:"inline-flex",alignItems:"center",gap:3,padding:small?"1px 7px":"2px 9px",borderRadius:99,fontSize:small?10:11,fontWeight:600,background:bg,color:fg,border:border||"none",whiteSpace:"nowrap"}}>{children}</span>;
+  const { bg, fg, border } = map[color] || map.default;
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:3,
+      padding: small ? "1px 6px" : "2px 8px",
+      borderRadius:4, fontSize: small ? 10 : 11, fontWeight:500,
+      background:bg, color:fg, border: border||"none", whiteSpace:"nowrap" }}>
+      {children}
+    </span>
+  );
 };
 
 const StatusBadge = ({ status }) => {
-  const map={"In-Progress":"warning","Approved":"success","Closed":"default","pass":"success","fail":"danger","Pending":"default","Open":"primary","Passed":"success","Passed with Warnings":"warning","Failed":"danger","Available":"success","In Transit":"warning","Maintenance":"danger","Active":"success","Inactive":"default","Planned":"purple","Aligned":"success","Needs Change":"warning","FeedbackReceived":"warning","Acknowledged":"primary"};
+  const map = {
+    "Active":"success", "Approved":"success", "Completed":"success", "Aligned":"success", "Passed":"success",
+    "Inactive":"danger", "Failed":"danger", "Error":"danger",
+    "Pending":"default", "Open":"default", "Planned":"default",
+    "In-Progress":"warning", "FeedbackReceived":"warning", "Needs Change":"warning", "Passed with Warnings":"warning", "Acknowledged":"primary",
+  };
   return <Badge color={map[status]||"default"}>{status}</Badge>;
 };
 
 const Btn = ({ children, onClick, variant="primary", disabled, size="md", title }) => {
-  const v={primary:{background:C.primary,color:"#fff"},success:{background:C.accent,color:"#fff"},warning:{background:C.warning,color:"#fff"},danger:{background:C.danger,color:"#fff"},outline:{background:"transparent",color:C.primary,border:`1.5px solid ${C.primary}`},ghost:{background:"#f1f5f9",color:"#374151",border:`1px solid ${C.border}`}};
-  const s={sm:{padding:"4px 10px",fontSize:11,borderRadius:6},md:{padding:"7px 14px",fontSize:12,borderRadius:7}};
-  return <button title={title} onClick={onClick} disabled={disabled} style={{display:"inline-flex",alignItems:"center",gap:5,fontWeight:700,border:"none",cursor:disabled?"not-allowed":"pointer",opacity:disabled?.5:1,...(v[variant]||v.primary),...(s[size]||s.md)}}>{children}</button>;
+  const v = {
+    primary:  { background:C.primary,  color:"#fff", border:"none" },
+    success:  { background:"#16a34a",  color:"#fff", border:"none" },
+    warning:  { background:C.warning,  color:"#fff", border:"none" },
+    danger:   { background:C.danger,   color:"#fff", border:"none" },
+    outline:  { background:"transparent", color:C.primary, border:`1.5px solid ${C.primary}` },
+    ghost:    { background:"#f9fafb",  color:"#374151", border:`1px solid ${C.border}` },
+  };
+  const s = {
+    sm: { padding:"3px 10px", fontSize:11, borderRadius:5 },
+    md: { padding:"6px 14px", fontSize:12, borderRadius:6 },
+  };
+  return (
+    <button title={title} onClick={onClick} disabled={disabled}
+      style={{ display:"inline-flex", alignItems:"center", gap:5, fontWeight:600,
+        cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? .45 : 1,
+        ...(v[variant]||v.primary), ...(s[size]||s.md) }}>
+      {children}
+    </button>
+  );
 };
 
 const Input = ({ value, onChange, placeholder, type="text", style={} }) =>
@@ -292,37 +335,47 @@ function Sidebar({ page, setPage }) {
   const [open, setOpen] = useState(()=>active?[active.key]:["design-inputs"]);
   const toggle = k => setOpen(o=>o.includes(k)?o.filter(x=>x!==k):[...o,k]);
   return (
-    <aside style={{width:220,background:C.sidebar,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0,overflowY:"auto"}}>
+    <aside style={{width:212,background:C.sidebar,display:"flex",flexDirection:"column",height:"100vh",flexShrink:0,overflowY:"auto"}}>
       <div style={{padding:"14px 14px 12px",borderBottom:"1px solid #2d3a52",display:"flex",alignItems:"center",gap:10}}>
-        <div style={{width:32,height:32,background:C.primary,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>⇄</div>
-        <div style={{fontSize:12,fontWeight:700,color:"#e2e8f0",lineHeight:1.3}}>Network Design<br/><span style={{color:C.sidebarFg,fontSize:11,fontWeight:400}}>Operations Module</span></div>
+        <div style={{width:28,height:28,background:"#2d3a52",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,flexShrink:0,color:"#94a3b8"}}>⇄</div>
+        <div style={{fontSize:12,fontWeight:600,color:"#e2e8f0",lineHeight:1.3}}>Network Design<br/><span style={{color:C.sidebarFg,fontSize:10,fontWeight:400}}>Ops Module</span></div>
       </div>
       <nav style={{flex:1,padding:"8px 6px",overflowY:"auto"}}>
-        <button onClick={()=>setPage("dashboard")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:7,fontSize:12,fontWeight:500,color:page==="dashboard"?"#fff":C.sidebarFg,background:page==="dashboard"?C.primary:"transparent",marginBottom:4,border:"none",cursor:"pointer"}}>🏠 Dashboard</button>
+        <button onClick={()=>setPage("dashboard")}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 10px",borderRadius:6,fontSize:12,fontWeight:500,
+            color:page==="dashboard"?"#fff":C.sidebarFg,
+            background:page==="dashboard"?"#2d6af6":"transparent",
+            marginBottom:4,border:"none",cursor:"pointer"}}>
+          Dashboard
+        </button>
         {NAV.map(n=>{
           const isOpen=open.includes(n.key);
           const isAct=page===n.key||n.subs.some(s=>page===`${n.key}/${s.key}`);
           return <div key={n.key}>
-            <button onClick={()=>toggle(n.key)} style={{display:"flex",alignItems:"center",gap:7,width:"100%",padding:"7px 10px",borderRadius:7,fontSize:12,fontWeight:600,color:isAct?"#e2e8f0":C.sidebarFg,background:isAct?"#263354":"transparent",justifyContent:"space-between",marginBottom:1,border:"none",cursor:"pointer"}}>
-              <span style={{display:"flex",alignItems:"center",gap:7}}>
-                <span style={{width:18,height:18,borderRadius:"50%",background:isAct?C.primary:"#2d3a52",color:"#fff",fontSize:9,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{n.step}</span>
-                {n.label}
-              </span>
-              <span style={{fontSize:9,opacity:.7}}>{isOpen?"▲":"▼"}</span>
+            <button onClick={()=>toggle(n.key)}
+              style={{display:"flex",alignItems:"center",width:"100%",padding:"7px 10px",borderRadius:6,fontSize:12,fontWeight:500,
+                color: isAct?"#e2e8f0":C.sidebarFg,
+                background: isAct?"#263354":"transparent",
+                justifyContent:"space-between",marginBottom:1,border:"none",cursor:"pointer"}}>
+              <span>{n.label}</span>
+              <span style={{fontSize:9,color:"#4a5568"}}>{isOpen?"›":"›"}</span>
             </button>
-            {isOpen&&<div style={{marginLeft:14,paddingLeft:10,borderLeft:"2px solid #2d3a52",marginBottom:2}}>
+            {isOpen&&<div style={{marginLeft:12,paddingLeft:8,borderLeft:"1px solid #2d3a52",marginBottom:2}}>
               {n.subs.map(s=>{
                 const sp=`${n.key}/${s.key}`;
                 const isC=page===sp;
-                return <button key={s.key} onClick={()=>setPage(sp)} style={{display:"flex",width:"100%",textAlign:"left",padding:"5px 8px",borderRadius:5,fontSize:11,color:isC?"#fff":C.sidebarFg,background:isC?C.primary:"transparent",marginBottom:1,border:"none",cursor:"pointer"}}>{s.label}</button>;
+                return <button key={s.key} onClick={()=>setPage(sp)}
+                  style={{display:"flex",width:"100%",textAlign:"left",padding:"5px 8px",borderRadius:5,fontSize:11,
+                    color:isC?"#fff":C.sidebarFg,
+                    background:isC?C.primary:"transparent",
+                    marginBottom:1,border:"none",cursor:"pointer"}}>
+                  {s.label}
+                </button>;
               })}
             </div>}
           </div>;
         })}
       </nav>
-      <div style={{padding:"6px 6px 8px",borderTop:"1px solid #2d3a52"}}>
-        <div style={{padding:"8px 10px",fontSize:10,color:"#4a5568",textAlign:"center"}}>Child module · Network Design Central</div>
-      </div>
     </aside>
   );
 }
@@ -330,36 +383,26 @@ function Sidebar({ page, setPage }) {
 // ─── Dashboard ────────────────────────────────────────────────────────────
 function Dashboard({ setPage }) {
   const cards=[
-    {step:"1",icon:"🗄️",title:"Design Inputs",path:"design-inputs",subs:["Volume Inputs","Node Inputs","Node & Vehicle Master","Design Ingestion"],desc:"Upload volume inputs, node inputs, SC & vehicle master, and ingest design plans."},
-    {step:"2",icon:"✏️",title:"Design Creation",path:"design-creation",subs:["Route Planning (RLH)","Mapping"],desc:"Build RLH route plans, SC-DC node mapping, and trigger design creation."},
-    {step:"3",icon:"🔍",title:"Design Review & Alignments",path:"sanctity-controls",subs:["Design Review","Ops Alignment","Map Visualisation"],desc:"Review plans, check guardrail breaches, accept, manage Ops Alignment, and visualise."},
+    {step:"1",title:"Design Inputs",path:"design-inputs",desc:"Upload volume inputs, node master, SC & vehicle master, and ingest design plans."},
+    {step:"2",title:"Design Creation",path:"design-creation",desc:"Build RLH route plans and trigger design creation runs."},
+    {step:"3",title:"Design Review & Alignments",path:"sanctity-controls",desc:"Review plans, manage Ops Alignment, and visualise the network."},
   ];
   return (
-    <div style={{padding:"28px 32px",maxWidth:1000}}>
-      <div style={{marginBottom:6,display:"flex",alignItems:"center",gap:8}}><Badge color="primary" small>Child Module</Badge><span style={{fontSize:12,color:C.muted}}>Sourced from Network Design Central</span></div>
-      <h1 style={{fontSize:24,fontWeight:800,marginBottom:4}}>Network Design — Operations</h1>
-      <p style={{color:C.muted,marginBottom:24,fontSize:13}}>Focused operations module covering Design Inputs, Creation (RLH & Mapping), and Design Review & Alignments.</p>
-      <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:28,flexWrap:"wrap",padding:"12px 16px",background:C.primaryLight,borderRadius:10,border:"1px solid #bfdbfe"}}>
-        {cards.map((s,i)=><span key={s.step} style={{display:"flex",alignItems:"center",gap:4}}>
-          <button onClick={()=>setPage(s.path)} style={{display:"flex",alignItems:"center",gap:6,padding:"4px 12px",borderRadius:99,background:"#fff",border:`1.5px solid ${C.primary}`,color:C.primary,fontWeight:700,fontSize:11,cursor:"pointer"}}>
-            <span style={{width:16,height:16,borderRadius:"50%",background:C.primary,color:"#fff",fontSize:9,fontWeight:800,display:"inline-flex",alignItems:"center",justifyContent:"center"}}>{s.step}</span>
-            {s.title}
-          </button>
-          {i<cards.length-1&&<span style={{color:"#93c5fd",fontSize:14}}>→</span>}
-        </span>)}
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:16}}>
-        {cards.map(s=><Card key={s.step} onClick={()=>setPage(s.path)} style={{padding:20,cursor:"pointer"}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-            <div style={{width:40,height:40,borderRadius:10,background:C.primaryLight,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,position:"relative",flexShrink:0}}>
-              {s.icon}
-              <span style={{position:"absolute",top:-6,right:-6,width:18,height:18,borderRadius:"50%",background:C.primary,color:"#fff",fontSize:9,fontWeight:800,display:"flex",alignItems:"center",justifyContent:"center"}}>{s.step}</span>
-            </div>
-            <div style={{fontWeight:700,fontSize:14}}>{s.title}</div>
+    <div style={{padding:"28px 32px",maxWidth:900}}>
+      <h1 style={{fontSize:20,fontWeight:700,marginBottom:4,color:"#1a2233"}}>Network Design — Operations</h1>
+      <p style={{color:C.muted,marginBottom:28,fontSize:13}}>Design Inputs · Design Creation · Design Review & Alignments</p>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
+        {cards.map(s=>(
+          <div key={s.step} onClick={()=>setPage(s.path)}
+            style={{padding:"18px 20px",background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,cursor:"pointer",transition:"border-color .15s"}}
+            onMouseEnter={e=>e.currentTarget.style.borderColor=C.primary}
+            onMouseLeave={e=>e.currentTarget.style.borderColor=C.border}>
+            <div style={{fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:.6,marginBottom:6}}>Step {s.step}</div>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:6,color:"#1a2233"}}>{s.title}</div>
+            <p style={{color:C.muted,fontSize:12,lineHeight:1.55,marginBottom:14}}>{s.desc}</p>
+            <span style={{fontSize:12,fontWeight:600,color:C.primary}}>Open</span>
           </div>
-          <p style={{color:C.muted,fontSize:12,lineHeight:1.55,marginBottom:10}}>{s.desc}</p>
-          <div style={{display:"flex",flexWrap:"wrap",gap:4}}>{s.subs.map(sub=><Badge key={sub}>{sub}</Badge>)}</div>
-        </Card>)}
+        ))}
       </div>
     </div>
   );
@@ -372,41 +415,39 @@ function UploadCard({ label, desc, cols=[] }) {
   const ref=useRef(null);
   const handle=ev=>{const f=ev.target.files?.[0];if(!f)return;setFile(f.name);setStatus("ready");ev.target.value="";};
   return (
-    <div style={{border:`2px solid ${status==="submitted"?C.accent:status==="ready"?C.primary:C.border}`,borderRadius:12,padding:20,marginBottom:16,background:"#fff",transition:"border-color .2s"}}>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:14}}>
-        <div>
-          <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{label}</div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{desc}</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{cols.map(c=><span key={c} style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:600,background:"#e0e7ff",color:"#3730a3"}}>{c}</span>)}</div>
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-          {status==="submitted"&&<span style={{padding:"3px 10px",borderRadius:99,fontSize:11,fontWeight:700,background:C.accentLight,color:"#065f46"}}>✓ Submitted</span>}
-          {status==="ready"&&<span style={{padding:"3px 10px",borderRadius:99,fontSize:11,fontWeight:600,background:C.primaryLight,color:C.primary}}>● Ready</span>}
-          <button style={{padding:"3px 10px",fontSize:11,fontWeight:500,borderRadius:6,border:`1px solid ${C.border}`,color:C.muted,background:"#f8fafc",cursor:"pointer"}}>📥 Template</button>
-        </div>
+    <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#fff",border:`1px solid ${status==="submitted"?"#16a34a":status==="ready"?C.primary:C.border}`,borderRadius:8,marginBottom:8}}>
+      <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
+      {/* CSV icon */}
+      <div onClick={()=>ref.current?.click()} title="Upload CSV" style={{width:32,height:32,background:"#f0fdf4",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",border:`1px solid ${status==="submitted"?"#16a34a":C.border}`,flexShrink:0}}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={status==="submitted"?"#16a34a":"#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+        </svg>
       </div>
-      {file&&status!=="submitted"&&<div style={{borderRadius:8,border:`1px solid ${C.primary}30`,background:"#f0f7ff",marginBottom:14,padding:"10px 14px",display:"flex",alignItems:"center",gap:12}}>
-        <div style={{fontSize:18}}>📄</div>
-        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:13}}>{file}</div><div style={{fontSize:11,color:C.muted}}>Ready to submit</div></div>
-        <button onClick={()=>{setFile(null);setStatus("idle");}} style={{fontSize:12,color:C.danger,padding:"2px 8px",borderRadius:5,border:`1px solid ${C.dangerLight}`,background:"#fff",cursor:"pointer"}}>✕</button>
-      </div>}
-      {status!=="submitted"&&<div onClick={()=>ref.current?.click()} style={{border:`2px dashed ${file?C.border:"#c7d2e8"}`,borderRadius:8,padding:file?"10px 14px":"24px 14px",textAlign:"center",background:"#f8fafc",cursor:"pointer"}}>
-        <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
-        {!file?<><div style={{fontSize:26,marginBottom:6}}>📂</div><div style={{fontSize:12,fontWeight:600,color:"#374151",marginBottom:3}}>Click to upload or drag & drop</div><div style={{fontSize:11,color:C.muted}}>CSV files only</div></>
-          :<div style={{fontSize:11,color:C.muted}}>📁 Replace file — click or drag a new CSV</div>}
-      </div>}
-      {file&&status==="ready"&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
-        <Btn onClick={()=>setStatus("submitted")}>✓ Submit</Btn>
-      </div>}
-      {status==="submitted"&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:C.accentLight,borderRadius:7,marginTop:10}}>
-        <span style={{fontSize:14}}>✅</span><span style={{fontSize:12,fontWeight:600,color:"#065f46"}}>Submitted successfully</span>
-        <button onClick={()=>{setFile(null);setStatus("idle");}} style={{marginLeft:"auto",fontSize:11,color:C.muted,padding:"2px 8px",borderRadius:5,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer"}}>Undo</button>
-      </div>}
+      {/* Label */}
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:12,fontWeight:600,color:"#1a2233"}}>{label}</div>
+        {file&&<div style={{fontSize:11,color:C.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{file}</div>}
+      </div>
+      {/* Actions */}
+      <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+        {/* Template download icon */}
+        <button title="Download template CSV" onClick={e=>{e.stopPropagation();}}
+          style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",flexShrink:0}}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
+        {status==="submitted"
+          ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={()=>{setFile(null);setStatus("idle");}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
+          : status==="ready"
+            ? <><Btn size="sm" onClick={()=>setStatus("submitted")}>Submit</Btn><button onClick={()=>{setFile(null);setStatus("idle");}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+            : <button onClick={()=>ref.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
+      </div>
     </div>
   );
 }
 
-// ─── Validated CSV Upload Card (module-level, not nested) ────────────────
+// ─── Validated CSV Upload Card (module-level, compact inline row) ─────────
 function CsvUploadCard({ label, desc, cols, onLoad }) {
   const [file, setFile]    = useState(null);
   const [status,setStatus] = useState("idle");
@@ -419,7 +460,7 @@ function CsvUploadCard({ label, desc, cols, onLoad }) {
     reader.onload = e => {
       const {headers,rows} = parseCSV(e.target.result);
       const missing = (cols||[]).filter(c=>c.endsWith(" *")).map(c=>c.replace(" *","").toLowerCase()).filter(c=>!headers.includes(c));
-      if(missing.length){ setErrors([`Missing mandatory columns: ${missing.join(", ")}`]); setStatus("error"); return; }
+      if(missing.length){ setErrors([`Missing: ${missing.join(", ")}`]); setStatus("error"); return; }
       if(onLoad) onLoad(rows.length ? e.target.result : "", rows);
       setStatus("ready");
     };
@@ -427,38 +468,40 @@ function CsvUploadCard({ label, desc, cols, onLoad }) {
     ev.target.value="";
   };
   return (
-    <div style={{border:`2px solid ${status==="submitted"?C.accent:status==="error"?C.danger:status==="ready"?C.primary:C.border}`,borderRadius:12,padding:18,marginBottom:14,background:"#fff"}}>
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:12}}>
-        <div>
-          <div style={{fontWeight:700,fontSize:13,marginBottom:3}}>{label}</div>
-          <div style={{fontSize:11,color:C.muted,marginBottom:6}}>{desc}</div>
-          <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{(cols||[]).map(c=><span key={c} style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:600,background:c.endsWith(" *")?"#fce7f3":"#e0e7ff",color:c.endsWith(" *")?"#9d174d":"#3730a3"}}>{c}</span>)}</div>
+    <div style={{marginBottom:8}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#fff",border:`1px solid ${status==="submitted"?"#16a34a":status==="error"?C.danger:status==="ready"?C.primary:C.border}`,borderRadius:8}}>
+        <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
+        {/* CSV icon */}
+        <div onClick={()=>ref.current?.click()} title="Upload CSV" style={{width:32,height:32,background:"#f0fdf4",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",border:`1px solid ${status==="submitted"?"#16a34a":C.border}`,flexShrink:0}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={status==="submitted"?"#16a34a":status==="error"?C.danger:"#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+          </svg>
         </div>
-        <div style={{display:"flex",gap:7,flexShrink:0,alignItems:"center"}}>
-          {status==="submitted"&&<Badge small color="success">✓ Submitted</Badge>}
-          {status==="ready"&&<Badge small color="primary">● Ready</Badge>}
-          {status==="error"&&<Badge small color="danger">⚠ Error</Badge>}
-          <button style={{padding:"3px 10px",fontSize:11,borderRadius:6,border:`1px solid ${C.border}`,color:C.muted,background:"#f8fafc",cursor:"pointer"}}>📥 Template</button>
+        {/* Label + file */}
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:600,color:"#1a2233"}}>{label}</div>
+          {file&&<div style={{fontSize:11,color:status==="error"?C.danger:C.muted,marginTop:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{status==="error"?errors[0]:file}</div>}
+        </div>
+        {/* Actions */}
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          {/* Actions */}
+        <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+          {/* Template download icon */}
+          <button title="Download template CSV" onClick={e=>{e.stopPropagation();}}
+            style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",flexShrink:0}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+          </button>
+          {status==="submitted"
+            ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
+            : status==="ready"
+              ? <><Btn size="sm" onClick={()=>setStatus("submitted")}>Submit</Btn><button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+              : status==="error"
+                ? <button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.danger,background:"none",border:"none",cursor:"pointer"}}>Clear ✕</button>
+                : <button onClick={()=>ref.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
         </div>
       </div>
-      {errors.length>0&&<div style={{padding:"6px 10px",background:C.dangerLight,borderRadius:7,fontSize:11,color:C.danger,marginBottom:10}}>{errors.join(" · ")}</div>}
-      {file&&status!=="submitted"&&<div style={{borderRadius:7,border:`1px solid ${C.primary}30`,background:"#f0f7ff",marginBottom:10,padding:"8px 12px",display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:16}}>📄</span>
-        <span style={{flex:1,fontSize:12,fontWeight:600}}>{file}</span>
-        <button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.danger,border:`1px solid ${C.dangerLight}`,background:"#fff",borderRadius:4,padding:"2px 7px",cursor:"pointer"}}>✕</button>
-      </div>}
-      {status!=="submitted"&&<div onClick={()=>ref.current?.click()} style={{border:`2px dashed ${file?C.border:"#c7d2e8"}`,borderRadius:8,padding:file?"10px 14px":"20px 14px",textAlign:"center",background:"#f8fafc",cursor:"pointer"}}>
-        <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
-        {!file?<><div style={{fontSize:24,marginBottom:4}}>📂</div><div style={{fontSize:12,fontWeight:600,color:"#374151",marginBottom:2}}>Click to upload or drag & drop</div><div style={{fontSize:11,color:C.muted}}>CSV only</div></>
-          :<div style={{fontSize:11,color:C.muted}}>Replace file — click or drag new CSV</div>}
-      </div>}
-      {file&&status==="ready"&&<div style={{display:"flex",justifyContent:"flex-end",marginTop:10}}>
-        <Btn onClick={()=>setStatus("submitted")}>✓ Submit</Btn>
-      </div>}
-      {status==="submitted"&&<div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",background:C.accentLight,borderRadius:7,marginTop:10}}>
-        <span>✅</span><span style={{fontSize:12,fontWeight:600,color:"#065f46"}}>Submitted successfully</span>
-        <button onClick={()=>{setFile(null);setStatus("idle");}} style={{marginLeft:"auto",fontSize:11,color:C.muted,padding:"2px 7px",borderRadius:4,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer"}}>Undo</button>
-      </div>}
     </div>
   );
 }
@@ -472,7 +515,7 @@ function DesignInputs({ sub, setPage }) {
       <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:800}}>Design Inputs</h1><p style={{color:C.muted,marginTop:4,fontSize:13}}>Upload and manage all input data for network design.</p></div>
       <Tabs tabs={[{key:"volume-inputs",label:"1A. Volume Inputs"},{key:"node-master",label:"1B. Node Inputs"},{key:"node-vehicle-master",label:"1C. Node & Vehicle Master"},{key:"design-ingestion",label:"1D. Design Ingestion"}]} active={active} onChange={k=>setPage(`design-inputs/${k}`)}/>
       {active==="volume-inputs"&&<div>
-        <div style={{padding:"10px 14px",background:"#eef4ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,marginBottom:20,display:"flex",gap:8}}><span>📋</span><div><b>Template-driven uploads.</b> Mandatory columns are validated on submission. Download the template CSV for the exact format.</div></div>
+        <div style={{padding:"10px 14px",background:"#eef4ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,marginBottom:20,display:"flex",gap:8}}><div style={{fontSize:12,color:C.muted}}>Mandatory columns are validated on upload. Download the template CSV for the exact column format.</div></div>
         <CsvUploadCard label="FM Hub Manifestation" desc="Planned shipment volumes per FM Hub. FM Hub Code and Planned Volume are mandatory." cols={["fm hub code *","planned volume *"]}/>
         <CsvUploadCard label="FMSC Manifestation" desc="Planned volumes per First-Mile Sort Centre." cols={["fmsc code *","planned volume *"]}/>
         <CsvUploadCard label="LMSC Landing" desc="Expected volumes landing at each Last-Mile Sort Centre." cols={["lmsc code *","planned volume *"]}/>
@@ -524,10 +567,9 @@ function NodeInputs() {
   return (
     <div>
       <div style={{display:"flex",gap:0,marginBottom:20,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-        {[{num:1,label:"AutoDML Node View",icon:"🗄️"},{num:2,label:"Node Additions & Closures",icon:"📝"},{num:3,label:"Node Migrations",icon:"🔀"}].map((s,i)=>(
+        {[{num:1,label:"AutoDML Node View"},{num:2,label:"Node Additions & Closures"},{num:3,label:"Node Migrations"}].map((s,i)=>(
           <button key={s.num} onClick={()=>setStep(s.num)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px",background:step===s.num?"#2d6af6":"#fff",borderRight:i<2?`1px solid ${C.border}`:"none",cursor:"pointer",border:"none"}}>
-            <span style={{fontSize:18}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:700,color:step===s.num?"#fff":C.muted,textAlign:"center"}}>Step {s.num}: {s.label}</span>
+            <span style={{fontSize:11,fontWeight:700,color:step===s.num?"#fff":C.muted,textAlign:"center"}}>{s.num}. {s.label}</span>
           </button>
         ))}
       </div>
@@ -558,66 +600,73 @@ function NodeInputs() {
           <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>{visible.length} of {allLinks.length} nodes</span>
         </div>
 
-        {/* ── Stats strip — scoped to filtered set ── */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:16,padding:"12px 14px",background:"#f8fafc",borderRadius:10,border:`1px solid ${C.border}`}}>
+        {/* ── Stats strip — neutral when zero, colour only when actionable ── */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:16}}>
           {[
-            ["Showing",visible.length,C.primary,C.primaryLight],
-            ["LMSCs",lmscFilter==="all"?LMSC_DATA.length:1,"#7c3aed","#ede9fe"],
-            ["✓ Clean",vClean.length,vClean.length===visible.length?C.accent:C.muted,vClean.length===visible.length?C.accentLight:"#f3f5f9"],
-            ["⚠ Inactive",vInactive.length,vInactive.length?C.danger:C.muted,vInactive.length?C.dangerLight:"#f3f5f9"],
-            ["⚠ Zero Cap",vZero.length,vZero.length?C.warning:C.muted,vZero.length?C.warningLight:"#f3f5f9"],
-            ["⚠ Multi-SC",vMulti.length,vMulti.length?C.warning:C.muted,vMulti.length?C.warningLight:"#f3f5f9"],
-          ].map(([l,v,color,bg])=>(
-            <div key={l} style={{padding:"10px 12px",background:bg,borderRadius:8}}>
-              <div style={{fontSize:18,fontWeight:800,color}}>{v}</div>
-              <div style={{fontSize:10,color:C.muted,marginTop:2,fontWeight:600,textTransform:"uppercase",letterSpacing:.4}}>{l}</div>
+            ["Showing",   visible.length,  false],
+            ["LMSCs",     lmscFilter==="all"?LMSC_DATA.length:1, false],
+            ["Clean",     vClean.length,   false],
+            ["Inactive",  vInactive.length, vInactive.length>0?"danger":false],
+            ["Zero Cap",  vZero.length,    vZero.length>0?"warning":false],
+            ["Multi-SC",  vMulti.length,   vMulti.length>0?"warning":false],
+          ].map(([l,v,flag])=>(
+            <div key={l} style={{padding:"10px 12px",background:flag==="danger"?"#fef2f2":flag==="warning"?"#fffbeb":"#f9fafb",borderRadius:6,border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:16,fontWeight:700,color:flag==="danger"?C.danger:flag==="warning"?C.warning:"#374151"}}>{v}</div>
+              <div style={{fontSize:10,color:C.muted,marginTop:2,fontWeight:500,textTransform:"uppercase",letterSpacing:.4}}>{l}</div>
             </div>
           ))}
         </div>
 
-        {/* ── Node table — filtered rows only ── */}
+        {/* ── Node table ── */}
         {visible.length===0
-          ? <div style={{padding:"40px 24px",textAlign:"center",color:C.muted,borderRadius:10,border:`1px dashed ${C.border}`,background:"#fafafa"}}>
-              <div style={{fontSize:28,marginBottom:8}}>🔍</div>
+          ? <div style={{padding:"32px 24px",textAlign:"center",color:C.muted,borderRadius:8,border:`1px dashed ${C.border}`}}>
               <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>No nodes match the current filters</div>
-              <div style={{fontSize:12}}>Try changing the LMSC filter or flag category.</div>
+              <div style={{fontSize:12}}>Try a different LMSC or flag category.</div>
             </div>
-          : <div style={{borderRadius:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+          : <div style={{borderRadius:8,border:`1px solid ${C.border}`,overflow:"hidden"}}>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
-                <thead><tr>{["LMSC","LMDC Code","LMDC Name","Zone","Cap","Active","Flags"].map((h,i)=><th key={i} style={{padding:"7px 12px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-                <tbody>{visible.map((l,i)=>(
-                  <tr key={i} style={{background:l.flags.some(f=>f.t==="danger")?"#fff5f5":l.flags.length?"#fffbeb":"#fff"}}>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11,fontWeight:600}}>{l.lmscCode}</td>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11,fontWeight:600}}>{l.lmdcCode}</td>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:12}}>{l.lmdcName}</td>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}><Badge small color="default">{l.zone}</Badge></td>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right"}}>{l.capacity.toLocaleString()}</td>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}><Badge small color={l.active?"success":"danger"}>{l.active?"✓":"✗"}</Badge></td>
-                    <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}>
-                      {l.flags.length
-                        ? <div style={{display:"flex",gap:3}}>{l.flags.map((f,fi)=><span key={fi} style={{padding:"1px 6px",borderRadius:99,fontSize:10,fontWeight:600,background:f.t==="danger"?C.dangerLight:C.warningLight,color:f.t==="danger"?C.danger:"#92400e"}}>{f.m}</span>)}</div>
-                        : <span style={{fontSize:11,color:C.accent}}>✓ Clean</span>}
-                    </td>
-                  </tr>
-                ))}</tbody>
+                <thead><tr style={{background:"#f9fafb"}}>{["LMSC","LMDC Code","LMDC Name","Zone","Capacity","Status","Flags"].map((h,i)=><th key={i} style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                <tbody>{visible.map((l,i)=>{
+                  const hasErr=l.flags.some(f=>f.t==="danger");
+                  const hasWarn=!hasErr&&l.flags.length>0;
+                  return (
+                    <tr key={i} style={{background:"#fff", boxShadow: hasErr?`inset 3px 0 0 ${C.danger}`:hasWarn?`inset 3px 0 0 ${C.warning}`:"none"}}>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11,fontWeight:600}}>{l.lmscCode}</td>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11}}>{l.lmdcCode}</td>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:12}}>{l.lmdcName}</td>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:"#374151"}}>{l.zone}</td>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right"}}>{l.capacity.toLocaleString()}</td>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}>
+                        {l.active
+                          ? <span style={{fontSize:11,color:"#374151"}}>Active</span>
+                          : <span style={{fontSize:11,color:C.danger,fontWeight:500}}>Inactive</span>}
+                      </td>
+                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>
+                        {l.flags.length===0
+                          ? <span style={{color:"#d1d5db"}}>—</span>
+                          : <span style={{color:hasErr?C.danger:"#b45309",fontWeight:500}}>{l.flags.map(f=>f.m).join(", ")}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
               </table>
             </div>}
 
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
-          <Btn onClick={()=>setStep(2)}>Confirm & Proceed →</Btn>
+          <Btn onClick={()=>setStep(2)}>Confirm & Proceed </Btn>
         </div>
       </div>}
       {step===2&&<div>
         <UploadCard label="Node Additions & Closures" desc='Upload with Node Flag = "Addition" or "Closure".' cols={["LMSC Code","LMDC Code *","Node Flag *","LMDC Latitude *","LMDC Longitude *"]}/>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-          <Btn variant="ghost" onClick={()=>setStep(1)}>← Back</Btn>
-          <Btn onClick={()=>setStep(3)}>Next →</Btn>
+          <Btn variant="ghost" onClick={()=>setStep(1)}>Back</Btn>
+          <Btn onClick={()=>setStep(3)}>Next </Btn>
         </div>
       </div>}
       {step===3&&<div>
         <UploadCard label="Node Migrations" desc="Upload planned SC migrations. Codes must match AutoDML master." cols={["LMSC Code *","LMDC Code *"]}/>
         <div style={{display:"flex",justifyContent:"flex-start",marginTop:8}}>
-          <Btn variant="ghost" onClick={()=>setStep(2)}>← Back</Btn>
+          <Btn variant="ghost" onClick={()=>setStep(2)}>Back</Btn>
         </div>
       </div>}
     </div>
@@ -689,7 +738,7 @@ function NodeVehicleMaster() {
   const [vmModal,     setVmModal]     = useState(false);
   const [vmForm,      setVmForm]      = useState({type:"",cap:"",dist:"",tp:"",tpLocal:"",tpNonLocal:"",feas:[]});
 
-  const feasColor = {"FM Carting":"purple","NLH":"success","RLH":"primary"};
+  const feasColor = {"FM Carting":"default","NLH":"default","RLH":"default"};
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const vmByType = t => vmData.find(v=>v.type===t);
@@ -875,8 +924,8 @@ function NodeVehicleMaster() {
                     </td>
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`}}>
                       <div style={{display:"flex",gap:5}}>
-                        <button onClick={()=>openEditSc(sc)} style={{padding:"2px 9px",fontSize:10,fontWeight:600,borderRadius:5,border:`1px solid ${C.border}`,background:"#fff",cursor:"pointer",color:C.primary}}>✏ Edit</button>
-                        <button onClick={()=>setDelScCode(sc.scCode)} style={{padding:"2px 9px",fontSize:10,fontWeight:600,borderRadius:5,border:`1px solid ${C.dangerLight}`,background:C.dangerLight,cursor:"pointer",color:C.danger}}>🗑</button>
+                        <button onClick={()=>openEditSc(sc)} title="Edit" style={{padding:"3px 7px",fontSize:12,border:`1px solid ${C.border}`,background:"#fff",borderRadius:4,cursor:"pointer",color:C.muted}}>✏</button>
+                        <button onClick={()=>setDelScCode(sc.scCode)} title="Delete" style={{padding:"3px 7px",fontSize:12,border:`1px solid ${C.border}`,background:"#fff",borderRadius:4,cursor:"pointer",color:C.muted}}>🗑</button>
                       </div>
                     </td>
                   </tr>
@@ -1223,7 +1272,7 @@ function RLHPlanning({ setPage, addDesign }) {
             rowId:`r${ri+1}`,
             lmscCode: r.scCode,
             lmdcCode: n.lmdcCode,
-            segment: `${r.scCode} → ${n.lmdcCode}`,
+            segment: `${r.scCode}  ${n.lmdcCode}`,
             vehicleType: vehs[ri%vehs.length]?.type||"17ft",
             vehicleCount: vehs[ri%vehs.length]?.count||2,
             tripFrequency:"Daily",
@@ -1260,7 +1309,7 @@ function RLHPlanning({ setPage, addDesign }) {
     setTimeout(()=>setRunning(false), 4000+nr.length*200);
   };
 
-  const stepNav = [{num:1,label:"Node Selection",icon:"📍"},{num:2,label:"Vehicle Selection",icon:"🚛"},{num:3,label:"Preview & Trigger",icon:"▶"}];
+  const stepNav = [{num:1,label:"Node Selection"},{num:2,label:"Vehicle Selection"},{num:3,label:"Preview & Trigger"}];
 
   return (
     <div>
@@ -1268,8 +1317,7 @@ function RLHPlanning({ setPage, addDesign }) {
       <div style={{display:"flex",gap:0,marginBottom:20,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
         {stepNav.map((s,i) => (
           <button key={s.num} onClick={()=>(s.num<=1||selScs.length>0)&&setStep(s.num)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px",background:step===s.num?"#2d6af6":"#fff",borderRight:i<2?`1px solid ${C.border}`:"none",cursor:"pointer",border:"none",opacity:s.num>1&&!selScs.length?.5:1}}>
-            <span style={{fontSize:18}}>{s.icon}</span>
-            <span style={{fontSize:10,fontWeight:700,color:step===s.num?"#fff":C.muted,textAlign:"center"}}>Step {s.num}: {s.label}</span>
+            <span style={{fontSize:11,fontWeight:700,color:step===s.num?"#fff":C.muted,textAlign:"center"}}>{s.num}. {s.label}</span>
           </button>
         ))}
       </div>
@@ -1291,7 +1339,7 @@ function RLHPlanning({ setPage, addDesign }) {
 
         {/* SC selector — searchable multi-select bar */}
         {(()=>{
-          const ZONES=[{key:"North",icon:"🔼"},{key:"South",icon:"🔽"},{key:"East",icon:"▶"},{ key:"West",icon:"◀"}];
+          const ZONES=[{key:"North"},{key:"South"},{key:"East"},{key:"West"}];
           // scSearch is now lifted state — no hooks inside IIFE
           const searchFiltered=LMSC_DATA.filter(sc=>
             sc.lmscCode.toLowerCase().includes(scSearch.toLowerCase())||
@@ -1359,8 +1407,8 @@ function RLHPlanning({ setPage, addDesign }) {
                   const allIn=zCs.length>0&&zCs.every(c=>selScs.includes(c));
                   const someIn=zCs.some(c=>selScs.includes(c))&&!allIn;
                   return <button key={z.key} onClick={()=>toggleZone(z.key)} title={`${z.key} Zone`}
-                    style={{display:"flex",alignItems:"center",gap:4,padding:"5px 10px",fontSize:11,fontWeight:700,borderRadius:7,border:`1.5px solid ${allIn?C.primary:someIn?"#93c5fd":C.border}`,background:allIn?C.primaryLight:someIn?"#eff6ff":"#fff",color:allIn?C.primary:someIn?"#1d4ed8":C.muted,cursor:"pointer",whiteSpace:"nowrap"}}>
-                    <span style={{fontSize:13}}>{z.icon}</span>{z.key}
+                    style={{padding:"4px 10px",fontSize:11,fontWeight:500,borderRadius:4,border:`1px solid ${allIn?C.primary:someIn?"#bfdbfe":C.border}`,background:allIn?"#eff6ff":"#fff",color:allIn?C.primary:someIn?"#1d4ed8":C.muted,cursor:"pointer"}}>
+                    {z.key}
                     {(allIn||someIn)&&<span style={{fontSize:10,background:C.primary,color:"#fff",borderRadius:99,padding:"0 5px",minWidth:14,textAlign:"center"}}>{zCs.filter(c=>selScs.includes(c)).length}</span>}
                   </button>;
                 })}
@@ -1470,7 +1518,7 @@ function RLHPlanning({ setPage, addDesign }) {
 
         {selScs.length===0&&<Card style={{padding:"36px 24px",textAlign:"center",borderStyle:"dashed"}}><div style={{fontSize:28,marginBottom:8}}>📍</div><div style={{fontWeight:600,fontSize:13,marginBottom:4}}>No SCs selected</div><div style={{fontSize:12,color:C.muted}}>Select one or more Sort Centres above.</div></Card>}
         <div style={{display:"flex",justifyContent:"flex-end",marginTop:14}}>
-          <Btn disabled={!selScs.length} onClick={()=>setStep(2)}>Next: Vehicle Selection →</Btn>
+          <Btn disabled={!selScs.length} onClick={()=>setStep(2)}>Next: Vehicle Selection </Btn>
         </div>
       </div>}
 
@@ -1532,8 +1580,8 @@ function RLHPlanning({ setPage, addDesign }) {
           </Card>;
         })}
         <div style={{display:"flex",gap:8,justifyContent:"space-between",marginTop:8}}>
-          <Btn variant="ghost" onClick={()=>setStep(1)}>← Back</Btn>
-          <Btn onClick={()=>{setSelScsTrigger([...selScs]);setViolAck({});setStep(3);}}>Next: Preview & Trigger →</Btn>
+          <Btn variant="ghost" onClick={()=>setStep(1)}>Back</Btn>
+          <Btn onClick={()=>{setSelScsTrigger([...selScs]);setViolAck({});setStep(3);}}>Next: Preview & Trigger </Btn>
         </div>
       </div>}
 
@@ -1631,7 +1679,7 @@ function RLHPlanning({ setPage, addDesign }) {
             <div style={{fontSize:11,color:C.muted}}>SCs with unacknowledged errors will be excluded.</div>
           </div>
           <div style={{display:"flex",gap:8}}>
-            <Btn variant="ghost" onClick={()=>setStep(2)}>← Back</Btn>
+            <Btn variant="ghost" onClick={()=>setStep(2)}>Back</Btn>
             <Btn disabled={selScsTrigger.length===0||running} onClick={trigger}>{running?"⟳ Triggering…":`▶ Trigger Design (${selScsTrigger.length} SC${selScsTrigger.length!==1?"s":""})`}</Btn>
           </div>
         </div>
@@ -1666,7 +1714,7 @@ function RLHPlanning({ setPage, addDesign }) {
           </div>
           {runs.some(r=>r.status==="Completed")&&<div style={{padding:"10px 16px",background:C.accentLight,borderTop:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <span style={{fontSize:12,fontWeight:600,color:"#065f46"}}>✅ {runs.filter(r=>r.status==="Completed").length} run{runs.filter(r=>r.status==="Completed").length!==1?"s":""} completed</span>
-            <Btn size="sm" variant="success" onClick={()=>setPage("sanctity-controls/review")}>Open Design Review →</Btn>
+            <Btn size="sm" variant="success" onClick={()=>setPage("sanctity-controls/review")}>Open Design Review </Btn>
           </div>}
         </Card>}
       </div>}
@@ -1796,7 +1844,7 @@ function PocModal({ open, onClose, scId, onPush, hasWarnings }) {
       <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
         <Btn variant="ghost" onClick={onClose}>Cancel</Btn>
         <Btn disabled={finalList.length===0} onClick={()=>onPush(finalList)}>
-          {hasWarnings?"⚠ Push (Accepted with Warnings)":"→ Push to Alignment"}
+          {hasWarnings?"⚠ Push (Accepted with Warnings)":" Push to Alignment"}
         </Btn>
       </div>
     </Modal>
@@ -1896,7 +1944,7 @@ function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
             </button>
             {!plan.pushed && (
               <Btn onClick={() => setPushing(true)}>
-                {hasWarnings ? "⚠ Accept & Push" : "→ Push to Alignment"}
+                {hasWarnings ? "⚠ Accept & Push" : " Push to Alignment"}
               </Btn>
             )}
           </div>
@@ -1912,23 +1960,45 @@ function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
         )}
       </div>
 
-      {/* ── 7 metric stats ── */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:`1px solid ${C.border}` }}>
-        {[
-          ["Coverage", `${coveragePct}%`, coveragePct===100?C.accent:C.danger, coveragePct===100?C.accentLight:C.dangerLight],
-          ["CPS", `₹${m.cps ?? "—"}`, C.primary, C.primaryLight],
-          ["Utilisation", `${m.utilPct ?? "—"}%`, utilColor, utilColor===C.accent?C.accentLight:C.warningLight],
-          ["Routes", m.totalRoutes ?? "—", "#1a2233", "#f8fafc"],
-          ["Vehicles by Type", vehicleStr, "#1a2233", "#f8fafc"],
-          ["Distance", `${(m.totalDistance??0).toLocaleString()} km`, "#1a2233", "#f8fafc"],
-          ["Total Cost", `₹${(m.totalCost??0).toLocaleString()}`, "#1a2233", "#f8fafc"],
-        ].map(([label, value, col, bg], i) => (
-          <div key={label} style={{ padding:"10px 10px", textAlign:"center", background:bg, borderRight:i<6?`1px solid ${C.border}`:"none" }}>
-            <div style={{ fontSize:i===4?9:13, fontWeight:800, color:col, lineHeight:1.3, wordBreak:"break-word" }}>{value}</div>
-            <div style={{ fontSize:9, color:C.muted, marginTop:3, textTransform:"uppercase", letterSpacing:.4, fontWeight:600 }}>{label}</div>
+      {/* ── 3 headline metrics + expandable ── */}
+      {(()=>{
+        const [showAll,setShowAll]=useState(false);
+        const headline=[
+          ["Coverage",`${coveragePct}%`, coveragePct===100?"#16a34a":C.danger],
+          ["CPS",`₹${m.cps??"—"}`, "#374151"],
+          ["Utilisation",`${m.utilPct??"—"}%`, (m.utilPct>90||m.utilPct<40)?C.warning:"#374151"],
+        ];
+        const extra=[
+          ["Routes", m.totalRoutes??"—"],
+          ["Vehicles", vehicleStr],
+          ["Distance", `${(m.totalDistance??0).toLocaleString()} km`],
+          ["Total Cost", `₹${(m.totalCost??0).toLocaleString()}`],
+        ];
+        return (
+          <div style={{borderBottom:`1px solid ${C.border}`}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr) auto",borderBottom:showAll?`1px solid ${C.border}`:"none"}}>
+              {headline.map(([label,value,col],i)=>(
+                <div key={label} style={{padding:"10px 14px",borderRight:`1px solid ${C.border}`}}>
+                  <div style={{fontSize:15,fontWeight:700,color:col}}>{value}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+                </div>
+              ))}
+              <button onClick={()=>setShowAll(s=>!s)}
+                style={{padding:"10px 14px",border:"none",background:"none",cursor:"pointer",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>
+                {showAll?"Less":"More metrics"}
+              </button>
+            </div>
+            {showAll&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",background:"#f9fafb"}}>
+              {extra.map(([label,value],i)=>(
+                <div key={label} style={{padding:"8px 14px",borderRight:i<3?`1px solid ${C.border}`:"none"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"#374151"}}>{value}</div>
+                  <div style={{fontSize:10,color:C.muted,marginTop:1,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+                </div>
+              ))}
+            </div>}
           </div>
-        ))}
-      </div>
+        );
+      })()}
 
       {/* ── Expand toggle ── */}
       <button onClick={() => setExpanded(e => !e)}
@@ -2009,12 +2079,12 @@ function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
             <span style={{ fontSize:11, color:C.muted }}>{(plan.rows||[]).length} routes · {plan.scId}</span>
             <div style={{ display:"flex", gap:8 }}>
               <button onClick={() => { if(setMapPlanId) setMapPlanId(plan.id); setPage("sanctity-controls/visualisation"); }}
-                style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:6, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, cursor:"pointer" }}>
-                🗺️ Open in Map
+                style={{ fontSize:11, color:C.muted, background:"none", border:"none", cursor:"pointer" }}>
+                Open in Map
               </button>
               <button onClick={downloadCSV}
-                style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"4px 10px", fontSize:11, fontWeight:600, borderRadius:6, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, cursor:"pointer" }}>
-                ⬇ Download CSV
+                style={{ fontSize:11, color:C.muted, background:"none", border:"none", cursor:"pointer" }}>
+                Download CSV
               </button>
             </div>
           </div>
@@ -2077,221 +2147,503 @@ function DesignReview({ designs, setDesigns, setAlignments, setPage, setMapPlanI
   );
 }
 
-// ─── Ops Lead Alignment View (M1) ────────────────────────────────────────
-// Simulates the Ops Lead's side: see plans sent to them, submit row feedback
-function OpsLeadAlignment({ alignments, setAlignments }) {
-  const [selId, setSelId]     = useState(null);
-  const [currentUser]         = useState("Ravi Kumar"); // simulated current ops lead
-  const [fbForm, setFbForm]   = useState({}); // {rowId: {decision, remark, sugVehicleType, sugCount, sugDist, sugCps}}
+// ─── Ops Lead Alignment — full rebuild ────────────────────────────────────
+function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) {
+  const currentUser = "Ravi Kumar";
+
+  // All plans visible to this user
+  const allVisible = alignments.filter(p => p.approvers.some(a => a.name === currentUser));
+
+  // Summary counts
+  const countPending     = allVisible.filter(p => !p.approvers.find(a=>a.name===currentUser)?.submitted).length;
+  const countAcknowledged= allVisible.filter(p => p.acknowledged && p.approvers.find(a=>a.name===currentUser)?.submitted).length;
+  const countFinalised   = allVisible.filter(p => p.status === "Approved").length;
+
+  const [activeFilter, setActiveFilter] = useState("all"); // all | pending | acknowledged | finalised
+  const [selId, setSelId] = useState(null);
+
+  const filtered = allVisible.filter(p => {
+    const me = p.approvers.find(a=>a.name===currentUser);
+    if (activeFilter==="pending")      return !me?.submitted;
+    if (activeFilter==="acknowledged") return me?.submitted && p.acknowledged;
+    if (activeFilter==="finalised")    return p.status==="Approved";
+    return true;
+  });
+
+  const plan = allVisible.find(p=>p.id===selId) || filtered[0] || null;
+  const me = plan?.approvers.find(a=>a.name===currentUser);
+  const isLocked = !!(me?.submitted && plan?.acknowledged);
+
+  // ── Per-plan feedback state ──────────────────────────────────────────────
+  // rowFbState: { [rowId]: { status:"Pending"|"Aligned"|"Needs Change", scLat, scLng, dcLat, dcLng, dcTp, routeCode, distance, remarks } }
+  const [rowFbState, setRowFbState] = useState({});
+  const [expandedPlan, setExpandedPlan] = useState(null); // plan id with expanded route table
+  const [showMetricsAll, setShowMetricsAll] = useState({});
+  const [validationResults, setValidationResults] = useState({}); // { [planId]: [{rowId, type, msg}] }
+  const [simulateOpen, setSimulateOpen] = useState(false);
   const [submitted, setSubmitted] = useState({});
 
-  // Plans where this user is a named reviewer and not yet submitted by them
-  const myPlans = alignments.filter(p =>
-    p.approvers.some(a => a.name === currentUser) && p.status !== "Approved"
-  );
-  const allVisible = alignments.filter(p =>
-    p.approvers.some(a => a.name === currentUser)
-  );
+  // Available routes for dropdown
+  const planRoutes = plan ? [...new Set((plan.rows||[]).map(r=>r.segment))] : [];
 
-  const plan = allVisible.find(p => p.id === selId) || allVisible[0];
-  const myApprover = plan?.approvers.find(a => a.name === currentUser);
-  const alreadySubmitted = myApprover?.submitted;
-
-  // Existing feedback from me
-  const myFb = plan?.rowFeedback?.filter(f => f.approverName === currentUser) || [];
-
-  const initFbForPlan = p => {
-    const init = {};
-    (p.rows||[]).forEach(r => {
-      const existing = (p.rowFeedback||[]).find(f => f.rowId === r.rowId && f.approverName === currentUser);
-      init[r.rowId] = existing
-        ? { decision: existing.decision, remark: existing.remark||"", sugVehicleType:existing.suggestedVehicleType||r.vehicleType, sugCount:String(existing.suggestedCount||r.vehicleCount), sugDist:String(existing.suggestedDist||r.routeDistanceKm), sugCps:String(existing.suggestedCps||r.cps) }
-        : { decision:"Aligned", remark:"", sugVehicleType:r.vehicleType, sugCount:String(r.vehicleCount), sugDist:String(r.routeDistanceKm), sugCps:String(r.cps) };
-    });
-    setFbForm(init);
-  };
-
+  // Init row state when plan changes
   useEffect(() => {
-    if (plan) initFbForPlan(plan);
+    if (!plan) return;
+    const existing = {};
+    (plan.rows||[]).forEach(r => {
+      const prev = rowFbState[`${plan.id}:${r.rowId}`];
+      if (!prev) {
+        existing[`${plan.id}:${r.rowId}`] = {
+          status:"Pending", scLat:"", scLng:"", dcLat:"", dcLng:"",
+          dcTp:String(r.tp||""), routeCode:r.segment, distance:String(r.routeDistanceKm||""), remarks:""
+        };
+      }
+    });
+    if (Object.keys(existing).length) setRowFbState(p=>({...p,...existing}));
   }, [plan?.id]);
 
+  const getRow = (planId, rowId) => rowFbState[`${planId}:${rowId}`] || { status:"Pending" };
+  const setRow = (planId, rowId, field, val) =>
+    setRowFbState(p=>({...p,[`${planId}:${rowId}`]:{...p[`${planId}:${rowId}`],[field]:val}}));
+
+  // ── Validate ──────────────────────────────────────────────────────────────
+  const runValidation = (p) => {
+    const issues = [];
+    const rows = p.rows||[];
+
+    // Count DC appearances (for DC >1 route check)
+    const dcRouteCount = {};
+    rows.forEach(r=>{ dcRouteCount[r.lmdcCode]=(dcRouteCount[r.lmdcCode]||0)+1; });
+
+    rows.forEach(r => {
+      const fb = getRow(p.id, r.rowId);
+      const tp = fb.dcTp ? +fb.dcTp : (r.tp||0);
+      const dist = fb.distance ? +fb.distance : (r.routeDistanceKm||0);
+
+      // Rule 1: TP > 7 warning
+      if (tp > 7) issues.push({ rowId:r.rowId, type:"warning", msg:`TP ${tp} exceeds 7 (route: ${r.segment})` });
+
+      // Rule 2: DC mapped to >1 route — failure
+      if ((dcRouteCount[r.lmdcCode]||0) > 1) issues.push({ rowId:r.rowId, type:"failure", msg:`${r.lmdcCode} is assigned to more than one route` });
+
+      // Rule 3: TP sequence — warn if TP set but no distance change (potential mismatch)
+      if (fb.dcTp && !fb.distance && fb.status==="Needs Change") issues.push({ rowId:r.rowId, type:"warning", msg:`TP changed without distance update on ${r.segment}` });
+
+      // Rule 4: Distance vs vehicle limit
+      const vmLimits = {"Tata Ace":100,"Bolero":150,"14ft":300,"17ft":400,"19ft":600,"22ft":800,"24ft SXL":1200,"32ft MXL":2000,"Trailer":3000};
+      const limit = vmLimits[r.vehicleType];
+      if (limit && dist > limit) issues.push({ rowId:r.rowId, type:"warning", msg:`Distance ${dist}km exceeds ${r.vehicleType} limit of ${limit}km` });
+    });
+
+    setValidationResults(prev=>({...prev,[p.id]:issues}));
+    return issues;
+  };
+
+  // ── Submit ────────────────────────────────────────────────────────────────
   const submitFeedback = () => {
     if (!plan) return;
+    const valRes = validationResults[plan.id]||[];
+    const hasFailures = valRes.some(v=>v.type==="failure");
+    if (hasFailures) return; // blocked
+
     const newFb = (plan.rows||[]).map(r => {
-      const f = fbForm[r.rowId] || {};
+      const fb = getRow(plan.id, r.rowId);
       return {
         rowId: r.rowId,
         approverName: currentUser,
-        decision: f.decision || "Aligned",
-        remark: f.remark || "",
-        suggestedVehicleType: f.sugVehicleType || r.vehicleType,
-        suggestedCount: +f.sugCount || r.vehicleCount,
-        suggestedDist: +f.sugDist || r.routeDistanceKm,
-        suggestedCps: +f.sugCps || r.cps,
+        decision: fb.status==="Needs Change"?"Needs Change":"Aligned",
+        remark: fb.remarks||"",
+        suggestedVehicleType: r.vehicleType,
+        suggestedCount: r.vehicleCount,
+        suggestedDist: fb.distance ? +fb.distance : r.routeDistanceKm,
+        suggestedCps: r.cps,
+        suggestedTp: fb.dcTp ? +fb.dcTp : r.tp,
+        suggestedRouteCode: fb.routeCode||r.segment,
+        suggestedScLat: fb.scLat||null, suggestedScLng: fb.scLng||null,
+        suggestedDcLat: fb.dcLat||null, suggestedDcLng: fb.dcLng||null,
       };
     });
-    setAlignments(prev => prev.map(p => {
+
+    setAlignments(prev=>prev.map(p=>{
       if (p.id !== plan.id) return p;
-      // Merge feedback: replace my rows, keep others
-      const otherFb = (p.rowFeedback||[]).filter(f => f.approverName !== currentUser);
-      const newApprovers = p.approvers.map(a => a.name === currentUser ? {...a, submitted:true} : a);
-      const anySubmitted = newApprovers.some(a => a.submitted);
-      return {
-        ...p,
-        rowFeedback: [...otherFb, ...newFb],
-        approvers: newApprovers,
-        status: anySubmitted && p.status === "Pending" ? "FeedbackReceived" : p.status,
-      };
+      const otherFb = (p.rowFeedback||[]).filter(f=>f.approverName!==currentUser);
+      const newApprovers = p.approvers.map(a=>a.name===currentUser?{...a,submitted:true}:a);
+      const anySubmitted = newApprovers.some(a=>a.submitted);
+      return { ...p, rowFeedback:[...otherFb,...newFb], approvers:newApprovers,
+        status: anySubmitted&&p.status==="Pending"?"FeedbackReceived":p.status };
     }));
-    setSubmitted(p => ({...p, [plan.id]:true}));
+    setSubmitted(p=>({...p,[plan.id]:true}));
   };
 
-  const setField = (rowId, field, val) =>
-    setFbForm(p => ({...p, [rowId]: {...(p[rowId]||{}), [field]:val}}));
+  // ── Accept All / Reset ────────────────────────────────────────────────────
+  const acceptAll = (p) => {
+    const updates = {};
+    (p.rows||[]).forEach(r => {
+      const key = `${p.id}:${r.rowId}`;
+      updates[key] = {...(rowFbState[key]||{}), status:"Aligned"};
+    });
+    setRowFbState(prev=>({...prev,...updates}));
+  };
+  const resetAll = (p) => {
+    const updates = {};
+    (p.rows||[]).forEach(r => {
+      const key = `${p.id}:${r.rowId}`;
+      updates[key] = {...(rowFbState[key]||{}), status:"Pending"};
+    });
+    setRowFbState(prev=>({...prev,...updates}));
+    setValidationResults(prev=>({...prev,[p.id]:[]}));
+  };
 
-  const statusLabel = s => ({Pending:"Plans Sent",FeedbackReceived:"Feedback Received",Acknowledged:"Under Review",Approved:"Finalised"})[s]||s;
-  const statusColor = s => ({Pending:C.muted,FeedbackReceived:C.warning,Acknowledged:C.primary,Approved:C.accent})[s]||C.muted;
-  const statusBg    = s => ({Pending:"#f3f5f9",FeedbackReceived:C.warningLight,Acknowledged:C.primaryLight,Approved:C.accentLight})[s]||"#f3f5f9";
+  // ── Metric helpers ────────────────────────────────────────────────────────
+  const getBadgeRow = (p) => {
+    const rows = p.rows||[];
+    const fb = rowFbState;
+    const pending   = rows.filter(r=>getRow(p.id,r.rowId).status==="Pending").length;
+    const aligned   = rows.filter(r=>getRow(p.id,r.rowId).status==="Aligned").length;
+    const needsChg  = rows.filter(r=>getRow(p.id,r.rowId).status==="Needs Change").length;
+    return {pending, aligned, needsChg};
+  };
+
+  const summaryTabs = [
+    {key:"all",        label:"All Plans",              count:allVisible.length},
+    {key:"pending",    label:"Pending Feedback",        count:countPending,    desc:"Awaiting your review"},
+    {key:"acknowledged",label:"Feedback Acknowledged",  count:countAcknowledged,desc:"Accepted by Central Planner"},
+    {key:"finalised",  label:"Finalised",               count:countFinalised,  desc:"Plan closed"},
+  ];
 
   return (
     <div>
-      {/* User context banner */}
-      <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 16px",background:C.primaryLight,borderRadius:10,border:"1px solid #bfdbfe",marginBottom:16,flexWrap:"wrap"}}>
-        <span style={{fontSize:18}}>👤</span>
-        <div>
-          <div style={{fontWeight:700,fontSize:13,color:C.primary}}>Ops Lead View — {currentUser}</div>
-          <div style={{fontSize:11,color:C.muted}}>Showing plans where you are a named reviewer. Submit feedback row-by-row.</div>
-        </div>
-        <div style={{marginLeft:"auto",display:"flex",gap:6}}>
-          <Badge small color="primary">{myPlans.length} pending</Badge>
-          <Badge small color="success">{allVisible.length - myPlans.length} completed</Badge>
-        </div>
+      {/* User banner */}
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"9px 14px",background:"#f9fafb",border:`1px solid ${C.border}`,borderRadius:8,marginBottom:16}}>
+        <div style={{fontSize:12,fontWeight:600,color:"#374151"}}>Ops Lead View — <span style={{color:C.primary}}>{currentUser}</span></div>
+        <div style={{fontSize:11,color:C.muted,marginLeft:4}}>Plans assigned to you: {allVisible.length}</div>
       </div>
 
-      <div style={{display:"grid",gridTemplateColumns:"240px 1fr",gap:16,alignItems:"start"}}>
+      {/* Summary strip / filter tabs */}
+      <div style={{display:"flex",gap:0,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:16}}>
+        {summaryTabs.map((t,i)=>{
+          const isActive = activeFilter===t.key;
+          return (
+            <button key={t.key} onClick={()=>setActiveFilter(t.key)}
+              style={{flex:"1 1 0",padding:"12px 14px",textAlign:"left",border:"none",
+                borderRight:i<summaryTabs.length-1?`1px solid ${C.border}`:"none",
+                background:"#fff",cursor:"pointer",
+                borderBottom:isActive?`2px solid ${C.primary}`:"2px solid transparent"}}>
+              <div style={{fontSize:18,fontWeight:700,color:"#1a2233"}}>{t.count}</div>
+              <div style={{fontSize:11,fontWeight:isActive?600:400,color:isActive?C.primary:C.muted,marginTop:1}}>{t.label}</div>
+              {t.desc&&<div style={{fontSize:10,color:"#9ca3af",marginTop:1}}>{t.desc}</div>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Main grid */}
+      <div style={{display:"grid",gridTemplateColumns:"220px 1fr",gap:14,alignItems:"start"}}>
+
         {/* Plan list */}
         <div>
-          <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.8,color:C.muted,marginBottom:8}}>Plans assigned to me ({allVisible.length})</div>
-          {allVisible.length===0&&<div style={{padding:"24px 12px",textAlign:"center",color:C.muted,fontSize:12,background:"#fafafa",borderRadius:8,border:`1px dashed ${C.border}`}}>No plans assigned to you yet.</div>}
-          {allVisible.map(p => {
-            const me = p.approvers.find(a=>a.name===currentUser);
-            const isSel = selId===p.id || (!selId&&allVisible[0]?.id===p.id);
+          {filtered.length===0&&<div style={{padding:"20px 12px",textAlign:"center",color:C.muted,fontSize:12,border:`1px dashed ${C.border}`,borderRadius:8}}>No plans in this category.</div>}
+          {filtered.map(p=>{
+            const meP = p.approvers.find(a=>a.name===currentUser);
+            const isSel = plan?.id===p.id;
+            const lockedP = !!(meP?.submitted && p.acknowledged);
             return (
-              <div key={p.id} onClick={()=>{setSelId(p.id);}} style={{padding:"10px 12px",borderRadius:8,marginBottom:6,cursor:"pointer",border:`1.5px solid ${isSel?C.primary:C.border}`,background:isSel?C.primaryLight:"#fff"}}>
-                <div style={{fontWeight:700,fontSize:12,marginBottom:3,color:isSel?C.primary:"#1a2233"}}>{p.designName}</div>
-                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}><Badge small>{p.designType}</Badge><Badge small color="default">{p.zone}</Badge></div>
-                <div style={{display:"flex",gap:5,alignItems:"center",flexWrap:"wrap"}}>
-                  <span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:statusBg(p.status),color:statusColor(p.status)}}>{statusLabel(p.status)}</span>
-                  {me?.submitted
-                    ? <Badge small color="success">✓ Submitted</Badge>
-                    : <Badge small color="warning">⏳ Pending your input</Badge>}
+              <div key={p.id} onClick={()=>setSelId(p.id)}
+                style={{padding:"10px 12px",borderRadius:8,marginBottom:6,cursor:"pointer",
+                  border:`1px solid ${isSel?C.primary:C.border}`,
+                  background:isSel?"#eff6ff":"#fff"}}>
+                <div style={{fontWeight:600,fontSize:12,marginBottom:4,color:isSel?C.primary:"#1a2233"}}>{p.designName}</div>
+                <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:4}}>
+                  <Badge small>{p.designType}</Badge>
+                  <Badge small>{p.zone}</Badge>
                 </div>
-                <div style={{fontSize:10,color:C.muted,marginTop:3}}>Pushed: {p.pushedOn}</div>
+                <div style={{fontSize:10,color:C.muted}}>{p.pushedOn}</div>
+                <div style={{marginTop:4,display:"flex",gap:4,flexWrap:"wrap"}}>
+                  {meP?.submitted
+                    ? <span style={{fontSize:10,color:"#16a34a",fontWeight:500}}>Submitted</span>
+                    : <span style={{fontSize:10,color:C.warning,fontWeight:500}}>Pending your input</span>}
+                  {lockedP&&<span style={{fontSize:10,color:C.muted}}>· Locked</span>}
+                  {p.status==="Approved"&&<span style={{fontSize:10,color:"#16a34a"}}>· Finalised</span>}
+                </div>
               </div>
             );
           })}
         </div>
 
-        {/* Detail panel */}
-        <div>
-          {!plan&&<div style={{padding:"48px 24px",textAlign:"center",color:C.muted}}><div style={{fontSize:36,marginBottom:8}}>📬</div><div style={{fontWeight:600}}>No plans assigned</div></div>}
-          {plan&&<>
-            {/* Plan header */}
-            <Card style={{padding:"14px 18px",marginBottom:14}}>
-              <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
-                <div>
-                  <div style={{fontWeight:800,fontSize:16,marginBottom:4}}>{plan.designName}</div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                    <Badge>{plan.designType}</Badge><Badge color="default">{plan.zone}</Badge>
-                    {plan.scId&&<Badge color="primary" small>{plan.scId}</Badge>}
-                    <span style={{padding:"2px 9px",borderRadius:99,fontSize:11,fontWeight:700,background:statusBg(plan.status),color:statusColor(plan.status)}}>{statusLabel(plan.status)}</span>
+        {/* Plan detail */}
+        {!plan&&<div style={{padding:"48px 24px",textAlign:"center",color:C.muted}}>
+          <div style={{fontWeight:600,fontSize:14,marginBottom:4}}>Select a plan to review</div>
+          <div style={{fontSize:12}}>Choose a plan from the list on the left.</div>
+        </div>}
+
+        {plan&&(()=>{
+          const rows = plan.rows||[];
+          const m = plan.metrics||{};
+          const vSplit = Object.entries(m.vehicleBreakdown||{}).map(([t,n])=>`${t}×${n}`).join(" ");
+          const valRes = validationResults[plan.id]||[];
+          const hasFailures = valRes.some(v=>v.type==="failure");
+          const validationRan = plan.id in validationResults;
+          const counts = getBadgeRow(plan);
+          const isExpanded = expandedPlan===plan.id;
+          const showAllM = showMetricsAll[plan.id];
+
+          return (
+            <div>
+              {/* Plan header */}
+              <div style={{padding:"12px 16px",background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,marginBottom:12}}>
+                <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+                  <div>
+                    <div style={{fontWeight:700,fontSize:15,marginBottom:4}}>{plan.designName}</div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                      <Badge>{plan.designType}</Badge>
+                      <Badge>{plan.zone}</Badge>
+                      {plan.scId&&<Badge>{plan.scId}</Badge>}
+                      {isLocked&&<span style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>Locked — acknowledged by Central Planner</span>}
+                    </div>
+                    {plan.hasWarnings&&<div style={{marginTop:6,fontSize:11,color:"#b45309"}}>This plan was accepted with validation warnings.</div>}
                   </div>
-                  {plan.hasWarnings&&<div style={{marginTop:8,padding:"4px 10px",background:C.warningLight,borderRadius:6,fontSize:11,fontWeight:700,color:"#92400e",display:"inline-block"}}>⚠ Planner accepted with warnings</div>}
-                </div>
-                <div style={{display:"flex",gap:8,flexShrink:0}}>
-                  {alreadySubmitted&&!submitted[plan.id]
-                    ? <Badge color="success">✓ Already submitted</Badge>
-                    : submitted[plan.id]
-                      ? <Badge color="success">✅ Feedback submitted</Badge>
-                      : <Btn onClick={submitFeedback}>📤 Submit Feedback</Btn>}
+                  <div style={{display:"flex",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+                    <button onClick={()=>{if(setMapPlanId)setMapPlanId(plan.id);if(setPage)setPage("sanctity-controls/visualisation");}}
+                      style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Map</button>
+                    {!isLocked&&<><Btn variant="ghost" size="sm" onClick={()=>acceptAll(plan)}>Accept All</Btn><Btn variant="ghost" size="sm" onClick={()=>resetAll(plan)}>Reset</Btn></>}
+                  </div>
                 </div>
               </div>
-            </Card>
 
-            {/* Feedback table */}
-            {(alreadySubmitted&&!submitted[plan.id])
-              ? <div style={{padding:"24px",textAlign:"center",color:C.muted,background:"#f0fdf4",borderRadius:10,border:`1px solid ${C.accent}40`}}>
-                  <div style={{fontSize:24,marginBottom:8}}>✅</div>
-                  <div style={{fontWeight:700,fontSize:13,color:"#065f46"}}>You have already submitted feedback for this plan.</div>
-                  <div style={{fontSize:12,marginTop:4}}>The Central Planner is now reviewing your input.</div>
+              {/* 6 metrics */}
+              <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,marginBottom:12,overflow:"hidden"}}>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr) auto",borderBottom:showAllM?`1px solid ${C.border}`:"none"}}>
+                  {[["CPS",`₹${m.cps??"—"}`],["Utilisation",`${m.utilPct??"—"}%`],["Routes",m.totalRoutes??"—"],["Vehicles",vSplit||"—"],["Distance",`${(m.totalDistance??0).toLocaleString()} km`],["Total Cost",`₹${(m.totalCost??0).toLocaleString()}`]].map(([label,value],i)=>(
+                    <div key={label} style={{padding:"10px 12px",borderRight:`1px solid ${C.border}`}}>
+                      <div style={{fontSize:14,fontWeight:700,color:"#1a2233"}}>{value}</div>
+                      <div style={{fontSize:9,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+                    </div>
+                  ))}
+                  <button onClick={()=>setShowMetricsAll(p=>({...p,[plan.id]:!p[plan.id]}))}
+                    style={{padding:"10px 12px",border:"none",background:"none",cursor:"pointer",fontSize:10,color:C.muted}}>{showAllM?"Less":"Detail"}</button>
                 </div>
-              : <div style={{borderRadius:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
-                  <div style={{padding:"8px 14px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:12,fontWeight:700}}>Row-level Feedback</span>
-                    <span style={{fontSize:11,color:C.muted}}>Mark each route as Aligned or Needs Change</span>
-                  </div>
-                  <div style={{overflowX:"auto"}}>
-                    <table style={{width:"100%",borderCollapse:"collapse"}}>
-                      <thead><tr>{["Route","Vehicle","Count","Dist","CPS","Your Decision","Suggested Values","Remark"].map((h,i)=><th key={i} style={{padding:"7px 10px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-                      <tbody>
-                        {(plan.rows||[]).map(r => {
-                          const f = fbForm[r.rowId] || {decision:"Aligned",remark:"",sugVehicleType:r.vehicleType,sugCount:String(r.vehicleCount),sugDist:String(r.routeDistanceKm),sugCps:String(r.cps)};
-                          const isChg = f.decision === "Needs Change";
-                          return (
-                            <tr key={r.rowId} style={{background:isChg?"#fffbeb":"#fff"}}>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:500,minWidth:160}}>{r.segment}</td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>{r.vehicleType}</td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>{r.vehicleCount}</td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>{r.routeDistanceKm}</td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12,fontWeight:700}}>₹{r.cps}</td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`}}>
-                                <div style={{display:"flex",gap:5}}>
-                                  {["Aligned","Needs Change"].map(d=>(
-                                    <button key={d} onClick={()=>setField(r.rowId,"decision",d)}
-                                      style={{padding:"3px 10px",fontSize:10,fontWeight:700,borderRadius:5,cursor:"pointer",
-                                        border:`1.5px solid ${f.decision===d?(d==="Aligned"?C.accent:C.warning):C.border}`,
-                                        background:f.decision===d?(d==="Aligned"?C.accentLight:C.warningLight):"#fff",
-                                        color:f.decision===d?(d==="Aligned"?"#065f46":"#92400e"):C.muted}}>
-                                      {d==="Aligned"?"✓ Aligned":"⚠ Needs Change"}
-                                    </button>
-                                  ))}
-                                </div>
-                              </td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,minWidth:240}}>
-                                {isChg&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:4}}>
-                                  {[["Vehicle",f.sugVehicleType||"","sugVehicleType",false],["Count",f.sugCount||"","sugCount",true],["Dist",f.sugDist||"","sugDist",true],["CPS",f.sugCps||"","sugCps",true]].map(([l,v,field,isNum])=>(
+                {showAllM&&<div style={{padding:"10px 14px",background:"#f9fafb",fontSize:11,color:C.muted,display:"flex",gap:16}}>
+                  <span>Coverage: <b style={{color:"#1a2233"}}>{m.coveragePct??100}%</b></span>
+                  <span>Triggered: <b style={{color:"#1a2233"}}>{plan.triggeredOn}</b></span>
+                  <span>By: <b style={{color:"#1a2233"}}>{plan.triggeredBy}</b></span>
+                </div>}
+              </div>
+
+              {/* Row status summary */}
+              <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
+                <span style={{fontSize:11,color:C.muted}}>Row status:</span>
+                <span style={{fontSize:11,color:"#9ca3af"}}>Pending <b style={{color:"#374151"}}>{counts.pending}</b></span>
+                <span style={{fontSize:11,color:"#16a34a"}}>Aligned <b>{counts.aligned}</b></span>
+                <span style={{fontSize:11,color:"#b45309"}}>Needs Change <b>{counts.needsChg}</b></span>
+                <button onClick={()=>setExpandedPlan(isExpanded?null:plan.id)}
+                  style={{marginLeft:"auto",fontSize:11,color:C.primary,background:"none",border:"none",cursor:"pointer"}}>
+                  {isExpanded?"Collapse routes":"Expand routes"} ({rows.length})
+                </button>
+              </div>
+
+              {/* Route table */}
+              {isExpanded&&<div style={{border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:12}}>
+                <div style={{overflowX:"auto"}}>
+                  <table style={{width:"100%",borderCollapse:"collapse"}}>
+                    <thead>
+                      <tr style={{background:"#f9fafb"}}>
+                        {["Segment","Vehicle","Count","Dist (km)","CPS","TP","Status","Action"].map((h,i)=>(
+                          <th key={i} style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(r=>{
+                        const fb = getRow(plan.id, r.rowId);
+                        const status = fb.status||"Pending";
+                        const isNC = status==="Needs Change";
+                        const valIssues = valRes.filter(v=>v.rowId===r.rowId);
+                        return (
+                          <>
+                          <tr key={r.rowId} style={{background:isNC?"#fffbeb":"#fff", boxShadow:valIssues.some(v=>v.type==="failure")?`inset 3px 0 0 ${C.danger}`:valIssues.length?`inset 3px 0 0 ${C.warning}`:"none"}}>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11,fontWeight:500}}>{r.segment}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.vehicleType}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.vehicleCount}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.routeDistanceKm}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>₹{r.cps}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.tp||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`}}>
+                              <span style={{fontSize:10,color:status==="Aligned"?"#16a34a":status==="Needs Change"?"#b45309":"#9ca3af",fontWeight:500}}>{status}</span>
+                            </td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`}}>
+                              {isLocked
+                                ? <span style={{fontSize:11,color:C.muted}}>Locked</span>
+                                : <div style={{display:"flex",gap:4}}>
+                                    {["Pending","Aligned","Needs Change"].map(s=>(
+                                      <button key={s} onClick={()=>setRow(plan.id,r.rowId,"status",s)}
+                                        style={{padding:"2px 7px",fontSize:10,borderRadius:4,cursor:"pointer",
+                                          border:`1px solid ${status===s?(s==="Aligned"?"#16a34a":s==="Needs Change"?C.warning:C.border):C.border}`,
+                                          background:status===s?(s==="Aligned"?"#f0fdf4":s==="Needs Change"?"#fffbeb":"#f9fafb"):"#fff",
+                                          color:status===s?(s==="Aligned"?"#16a34a":s==="Needs Change"?"#b45309":"#374151"):C.muted,
+                                          fontWeight:status===s?600:400}}>
+                                        {s}
+                                      </button>
+                                    ))}
+                                  </div>}
+                            </td>
+                          </tr>
+                          {/* Needs Change expanded edit fields */}
+                          {isNC&&!isLocked&&(
+                            <tr key={`${r.rowId}-edit`}>
+                              <td colSpan={8} style={{padding:"10px 14px",background:"#fffbeb",borderBottom:`1px solid ${C.border}`,borderLeft:`3px solid ${C.warning}`}}>
+                                <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr) 1fr",gap:8,alignItems:"end"}}>
+                                  {[["SC Lat",    "scLat",     "number","e.g. 12.97"],
+                                    ["SC Lng",    "scLng",     "number","e.g. 77.59"],
+                                    ["DC Lat",    "dcLat",     "number","e.g. 12.93"],
+                                    ["DC Lng",    "dcLng",     "number","e.g. 77.62"],
+                                    ["DC TP",     "dcTp",      "number",`Current: ${r.tp||"—"}`],
+                                    ["Distance (km)","distance","number",`Current: ${r.routeDistanceKm}`],
+                                  ].map(([label,field,type,ph])=>(
                                     <div key={field}>
-                                      <div style={{fontSize:9,color:C.muted,fontWeight:700,textTransform:"uppercase",marginBottom:2}}>{l}</div>
-                                      <input type={isNum?"number":"text"} value={v} onChange={e=>setField(r.rowId,field,e.target.value)}
-                                        style={{width:"100%",padding:"3px 6px",border:`1px solid ${C.border}`,borderRadius:4,fontSize:11,outline:"none"}}/>
+                                      <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:.4,marginBottom:3}}>{label}</div>
+                                      <input type={type} value={fb[field]||""} onChange={e=>setRow(plan.id,r.rowId,field,e.target.value)}
+                                        placeholder={ph}
+                                        style={{width:"100%",padding:"4px 7px",border:`1px solid ${C.border}`,borderRadius:4,fontSize:11,outline:"none",background:"#fff"}}/>
                                     </div>
                                   ))}
+                                  <div>
+                                    <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:.4,marginBottom:3}}>Route Code</div>
+                                    <select value={fb.routeCode||r.segment} onChange={e=>setRow(plan.id,r.rowId,"routeCode",e.target.value)}
+                                      style={{width:"100%",padding:"4px 7px",border:`1px solid ${C.border}`,borderRadius:4,fontSize:11,outline:"none",background:"#fff"}}>
+                                      {planRoutes.map(rt=><option key={rt} value={rt}>{rt}</option>)}
+                                      <option value="__new__">+ New route code…</option>
+                                    </select>
+                                    {fb.routeCode==="__new__"&&<input value={fb.newRouteCode||""} onChange={e=>setRow(plan.id,r.rowId,"newRouteCode",e.target.value)}
+                                      placeholder="Enter route code"
+                                      style={{width:"100%",marginTop:4,padding:"4px 7px",border:`1px solid ${C.border}`,borderRadius:4,fontSize:11,outline:"none"}}/>}
+                                  </div>
+                                </div>
+                                <div style={{marginTop:8}}>
+                                  <div style={{fontSize:9,color:C.muted,fontWeight:600,textTransform:"uppercase",letterSpacing:.4,marginBottom:3}}>Remarks (optional)</div>
+                                  <input value={fb.remarks||""} onChange={e=>setRow(plan.id,r.rowId,"remarks",e.target.value)}
+                                    placeholder="Add remarks…"
+                                    style={{width:"100%",padding:"5px 8px",border:`1px solid ${C.border}`,borderRadius:4,fontSize:11,outline:"none"}}/>
+                                </div>
+                                {valIssues.length>0&&<div style={{marginTop:6,display:"flex",flexDirection:"column",gap:3}}>
+                                  {valIssues.map((v,vi)=><div key={vi} style={{fontSize:10,color:v.type==="failure"?C.danger:"#b45309",fontWeight:500}}>{v.type==="failure"?"✕":"⚠"} {v.msg}</div>)}
                                 </div>}
-                                {!isChg&&<span style={{fontSize:11,color:C.muted,fontStyle:"italic"}}>No changes suggested</span>}
-                              </td>
-                              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,minWidth:140}}>
-                                <input value={f.remark||""} onChange={e=>setField(r.rowId,"remark",e.target.value)}
-                                  placeholder="Optional remark…"
-                                  style={{width:"100%",padding:"4px 7px",border:`1px solid ${C.border}`,borderRadius:5,fontSize:11,outline:"none"}}/>
                               </td>
                             </tr>
-                          );
-                        })}
-                      </tbody>
+                          )}
+                          </>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>}
+
+              {/* Validate + Simulate + Submit bar */}
+              {!isLocked&&<div style={{padding:"12px 16px",background:"#fff",border:`1px solid ${C.border}`,borderRadius:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+
+                  {/* Validate */}
+                  <Btn onClick={()=>runValidation(plan)}>Validate Changes</Btn>
+
+                  {/* Validation results */}
+                  {validationRan&&(
+                    valRes.length===0
+                      ? <span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>All checks passed</span>
+                      : <span style={{fontSize:11,color:hasFailures?C.danger:"#b45309",fontWeight:500}}>
+                          {valRes.filter(v=>v.type==="failure").length} failure{valRes.filter(v=>v.type==="failure").length!==1?"s":""}, {valRes.filter(v=>v.type==="warning").length} warning{valRes.filter(v=>v.type==="warning").length!==1?"s":""}
+                        </span>
+                  )}
+
+                  {/* Simulate */}
+                  {validationRan&&<Btn variant="ghost" size="sm" onClick={()=>setSimulateOpen(true)}>Simulate</Btn>}
+
+                  {/* Submit — locked when failures remain */}
+                  <Btn
+                    disabled={hasFailures||!validationRan}
+                    onClick={submitFeedback}
+                    title={!validationRan?"Run validation first":hasFailures?"Resolve failures before submitting":""}
+                    style={{marginLeft:"auto"}}>
+                    Submit Feedback
+                  </Btn>
+
+                  {(submitted[plan.id])&&<span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span>}
+                </div>
+
+                {/* Validation issues list */}
+                {validationRan&&valRes.length>0&&<div style={{marginTop:10,display:"flex",flexDirection:"column",gap:4}}>
+                  {valRes.map((v,vi)=>(
+                    <div key={vi} style={{fontSize:11,color:v.type==="failure"?C.danger:"#b45309",display:"flex",gap:6,alignItems:"flex-start"}}>
+                      <span style={{flexShrink:0}}>{v.type==="failure"?"✕ Failure":"⚠ Warning"}</span>
+                      <span>{v.msg}</span>
+                    </div>
+                  ))}
+                </div>}
+              </div>}
+
+              {isLocked&&<div style={{padding:"10px 14px",background:"#f9fafb",border:`1px solid ${C.border}`,borderRadius:8,fontSize:11,color:C.muted}}>
+                Feedback has been acknowledged by the Central Planner. Editing is disabled.
+              </div>}
+
+              {/* Simulate modal: side-by-side maps + CPS comparison */}
+              <Modal open={simulateOpen} onClose={()=>setSimulateOpen(false)} title="Simulate — Original vs Feedback Plan" width={1100}>
+                {/* CPS comparison */}
+                <div style={{marginBottom:20}}>
+                  <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted,marginBottom:10}}>SC CPS Comparison per route</div>
+                  <div style={{borderRadius:8,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse"}}>
+                      <thead><tr style={{background:"#f9fafb"}}>{["Route","Original CPS","Feedback CPS","Change","Status"].map((h,i)=><th key={i} style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",textAlign:i>1?"right":"left"}}>{h}</th>)}</tr></thead>
+                      <tbody>{rows.map(r=>{
+                        const fb = getRow(plan.id, r.rowId);
+                        const origCps = r.cps;
+                        const fbCps = r.cps; // CPS stays same unless feedback changes it
+                        const fbStatus = fb.status||"Pending";
+                        const changed = fbStatus==="Needs Change"&&Object.values({scLat:fb.scLat,scLng:fb.scLng,dcLat:fb.dcLat,dcLng:fb.dcLng,dcTp:fb.dcTp,distance:fb.distance}).some(v=>v&&v!=="");
+                        return <tr key={r.rowId} style={{background:changed?"#fffbeb":"#fff"}}>
+                          <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>{r.segment}</td>
+                          <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>₹{origCps}</td>
+                          <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right",color:changed?C.warning:"inherit"}}>₹{fbCps}{changed&&fb.distance&&r.routeDistanceKm?` (dist: ${r.routeDistanceKm}→${fb.distance}km)`:""}</td>
+                          <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>{changed?<span style={{fontSize:10,color:C.warning}}>Modified</span>:<span style={{fontSize:10,color:"#9ca3af"}}>—</span>}</td>
+                          <td style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`}}><span style={{fontSize:10,color:fbStatus==="Aligned"?"#16a34a":fbStatus==="Needs Change"?"#b45309":"#9ca3af",fontWeight:500}}>{fbStatus}</span></td>
+                        </tr>;
+                      })}</tbody>
                     </table>
                   </div>
-                  <div style={{padding:"10px 14px",background:"#f8fafc",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"flex-end",gap:8}}>
-                    <span style={{fontSize:11,color:C.muted,alignSelf:"center"}}>{(plan.rows||[]).filter(r=>(fbForm[r.rowId]?.decision||"Aligned")==="Needs Change").length} row{(plan.rows||[]).filter(r=>(fbForm[r.rowId]?.decision||"Aligned")==="Needs Change").length!==1?"s":""} flagged for change</span>
-                    <Btn onClick={submitFeedback}>📤 Submit Feedback</Btn>
+                </div>
+                {/* Side-by-side maps */}
+                <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted,marginBottom:10}}>Route visualisation — Original vs Feedback</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:600,color:"#374151",marginBottom:6}}>Original Plan</div>
+                    {(()=>{
+                      const [f,setF]=useState({lmdcSearch:"",route:"all",vehicleType:"all",zone:"all"});
+                      return <><MapFilterBar rows={rows} filters={f} setFilters={setF}/><RouteMapSVG rows={rows} filters={f}/></>;
+                    })()}
                   </div>
-                </div>}
-          </>}
-        </div>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:600,color:"#374151",marginBottom:6}}>Feedback Plan <span style={{color:C.warning,fontWeight:400}}>(changes highlighted)</span></div>
+                    {(()=>{
+                      const [f,setF]=useState({lmdcSearch:"",route:"all",vehicleType:"all",zone:"all"});
+                      // Build feedback-adjusted rows
+                      const fbRows = rows.map(r=>{
+                        const fb = getRow(plan.id, r.rowId);
+                        return { ...r, routeDistanceKm: fb.distance?+fb.distance:r.routeDistanceKm };
+                      });
+                      return <><MapFilterBar rows={fbRows} filters={f} setFilters={setF}/><RouteMapSVG rows={fbRows} filters={f}/></>;
+                    })()}
+                  </div>
+                </div>
+                <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
+                  <Btn variant="ghost" onClick={()=>setSimulateOpen(false)}>Close</Btn>
+                </div>
+              </Modal>
+
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
 }
-
 // ─── Central Planner Alignment ────────────────────────────────────────────
 // MiniMapSVG removed — replaced by standard RouteMapSVG + MapFilterBar + MapLegend everywhere.
 
@@ -2318,7 +2670,7 @@ function SimulateModal({ plan, open, onClose }) {
   const cmp=rows.map(row=>{const fbRow=fb.find(f=>f.rowId===row.rowId);const changed=fbRow?.decision==="Needs Change";return{...row,fbRow,changed,sugVehicle:changed?fbRow.suggestedVehicleType:row.vehicleType,sugCount:changed?fbRow.suggestedCount:row.vehicleCount,sugDist:changed?fbRow.suggestedDist:row.routeDistanceKm,sugCps:changed?fbRow.suggestedCps:row.cps};});
   const orig={vehicles:rows.reduce((a,r)=>a+r.vehicleCount,0),dist:rows.reduce((a,r)=>a+r.routeDistanceKm,0),avgCps:rows.length?(rows.reduce((a,r)=>a+r.cps,0)/rows.length).toFixed(1):"—"};
   const sugg={vehicles:cmp.reduce((a,r)=>a+r.sugCount,0),dist:cmp.reduce((a,r)=>a+r.sugDist,0),avgCps:cmp.length?(cmp.reduce((a,r)=>a+r.sugCps,0)/cmp.length).toFixed(1):"—"};
-  const MK=({label,o,s})=>{const ch=String(o)!==String(s);return <div style={{padding:"12px 14px",borderRadius:8,border:`1.5px solid ${ch?C.warning:C.border}`,background:ch?"#fffbeb":"#f8fafc"}}><div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted,marginBottom:6}}>{label}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:800}}>{o}</span>{ch&&<><span style={{fontSize:14,color:C.muted}}>→</span><span style={{fontSize:18,fontWeight:800,color:C.warning}}>{s}</span></>}</div>{ch&&<div style={{fontSize:9,color:"#92400e",marginTop:3,fontWeight:700}}>SUGGESTED CHANGE</div>}</div>;};
+  const MK=({label,o,s})=>{const ch=String(o)!==String(s);return <div style={{padding:"12px 14px",borderRadius:8,border:`1.5px solid ${ch?C.warning:C.border}`,background:ch?"#fffbeb":"#f8fafc"}}><div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted,marginBottom:6}}>{label}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:800}}>{o}</span>{ch&&<><span style={{fontSize:14,color:C.muted}}></span><span style={{fontSize:18,fontWeight:800,color:C.warning}}>{s}</span></>}</div>{ch&&<div style={{fontSize:9,color:"#92400e",marginTop:3,fontWeight:700}}>SUGGESTED CHANGE</div>}</div>;};
 
   // Independent filter state per panel
   const [filtersOrig, setFiltersOrig] = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
@@ -2555,23 +2907,22 @@ function CentralPlannerAlignment({ alignments, setAlignments }) {
   };
 
   const summaryTabs=[
-    {key:"all",label:"All Plans",count:counts.all,icon:"📋",color:"#1a2233",bg:"#f3f5f9"},
-    {key:"Pending",label:"Plans Sent",count:counts.Pending,icon:"📤",color:C.muted,bg:"#f3f5f9",desc:"Awaiting ops feedback"},
-    {key:"FeedbackReceived",label:"Feedback Received",count:counts.FeedbackReceived,icon:"💬",color:C.warning,bg:C.warningLight,desc:"Ready to acknowledge"},
-    {key:"Acknowledged",label:"Under Review",count:counts.Acknowledged,icon:"🔍",color:C.primary,bg:C.primaryLight,desc:"Row decisions in progress"},
-    {key:"Approved",label:"Finalised",count:counts.Approved,icon:"✅",color:C.accent,bg:C.accentLight,desc:"Approved & versioned"},
+    {key:"all",label:"All Plans",count:counts.all},
+    {key:"Pending",label:"Plans Sent",count:counts.Pending},
+    {key:"FeedbackReceived",label:"Feedback Received",count:counts.FeedbackReceived},
+    {key:"Acknowledged",label:"Under Review",count:counts.Acknowledged},
+    {key:"Approved",label:"Finalised",count:counts.Approved},
   ];
 
   return (
     <div>
-      {/* Summary strip / filter tabs */}
-      <div style={{display:"flex",gap:0,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden",marginBottom:20}}>
+      {/* Summary strip: neutral by default, active tab gets blue underline only */}
+      <div style={{display:"flex",gap:0,background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,overflow:"hidden",marginBottom:20}}>
         {summaryTabs.map((t,i)=>{
           const isActive=activeFilter===t.key;
-          return <button key={t.key} onClick={()=>{setActiveFilter(t.key);}} style={{flex:"1 1 0",minWidth:100,padding:"14px 16px",textAlign:"left",border:"none",borderRight:i<summaryTabs.length-1?`1px solid ${C.border}`:"none",background:isActive?t.bg:"#fff",cursor:"pointer",borderBottom:isActive?`3px solid ${t.color}`:"3px solid transparent",transition:"all .15s"}}>
-            <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:16}}>{t.icon}</span><span style={{fontSize:22,fontWeight:800,color:isActive?t.color:"#1a2233"}}>{t.count}</span></div>
-            <div style={{fontSize:11,fontWeight:700,color:isActive?t.color:"#374151"}}>{t.label}</div>
-            {t.desc&&<div style={{fontSize:10,color:C.muted,marginTop:2}}>{t.desc}</div>}
+          return <button key={t.key} onClick={()=>{setActiveFilter(t.key);}} style={{flex:"1 1 0",minWidth:90,padding:"12px 14px",textAlign:"left",border:"none",borderRight:i<summaryTabs.length-1?`1px solid ${C.border}`:"none",background:"#fff",cursor:"pointer",borderBottom:isActive?`2px solid ${C.primary}`:"2px solid transparent",transition:"border-color .15s"}}>
+            <div style={{fontSize:18,fontWeight:700,color:"#1a2233",marginBottom:2}}>{t.count}</div>
+            <div style={{fontSize:11,fontWeight:isActive?600:400,color:isActive?C.primary:C.muted}}>{t.label}</div>
           </button>;
         })}
       </div>
@@ -2623,7 +2974,7 @@ function CentralPlannerAlignment({ alignments, setAlignments }) {
                 <div style={{display:"flex",gap:8,flexWrap:"wrap",flexShrink:0}}>
                   {feedbackGateMet(plan)&&!plan.acknowledged&&plan.status!=="Approved"&&<Btn variant="warning" onClick={acknowledge}>👁 Acknowledge Feedback</Btn>}
                   {plan.acknowledged&&plan.status!=="Approved"&&<>
-                    <Btn variant="outline" onClick={()=>setSimulateOpen(true)}>🔬 Simulate</Btn>
+                    <Btn variant="ghost" onClick={()=>setSimulateOpen(true)}>Simulate</Btn>
                     <Btn variant="ghost" onClick={()=>setSendBackOpen(true)}>↩ Send Back</Btn>
                     <Btn variant="success" disabled={!allDecided} onClick={()=>setFinaliseOpen(true)}>✓ Finalise Plan</Btn>
                   </>}
@@ -2795,7 +3146,7 @@ function RouteMapSVG({ rows, filters }) {
   // Route index for colour assignment
   const uniqueSegments = [...new Set(rows.map(r => r.segment))];
 
-  // Build arcs: each filtered row is one arc SC→DC
+  // Build arcs: each filtered row is one arc SCDC
   const arcs = filtered.map((r, i) => {
     const from = nodePts[r.lmscCode];
     const to   = nodePts[r.lmdcCode];
@@ -2907,11 +3258,15 @@ function RouteMapSVG({ rows, filters }) {
 }
 
 // ── Legend component ────────────────────────────────────────────────────────
-function MapLegend({ rows }) {
+function MapLegend({ rows, defaultCollapsed=true }) {
   const uniqueSegments = [...new Set(rows.map(r => r.segment))];
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   return (
-    <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:10, padding:"14px 16px" }}>
-      <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:.5, color:C.muted, marginBottom:10 }}>Legend</div>
+    <div style={{ background:"#fff", border:`1px solid ${C.border}`, borderRadius:8 }}>
+      <button onClick={()=>setCollapsed(s=>!s)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",width:"100%",padding:"10px 14px",border:"none",background:"none",cursor:"pointer",fontSize:11,fontWeight:600,color:C.muted}}>
+        <span>Legend</span><span style={{fontSize:10}}>{collapsed?"show":"hide"}</span>
+      </button>
+      {!collapsed&&<div style={{padding:"0 14px 12px"}}>
 
       {/* Node types */}
       <div style={{ marginBottom:12 }}>
@@ -2930,18 +3285,19 @@ function MapLegend({ rows }) {
 
       {/* Route colours */}
       {uniqueSegments.length > 0 && (
-        <div>
-          <div style={{ fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:.4, marginBottom:6 }}>Routes ({uniqueSegments.length})</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:180, overflowY:"auto" }}>
+        <div style={{marginTop:10}}>
+          <div style={{ fontSize:10, fontWeight:600, color:C.muted, textTransform:"uppercase", letterSpacing:.4, marginBottom:6 }}>Routes ({uniqueSegments.length})</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:160, overflowY:"auto" }}>
             {uniqueSegments.map((seg, i) => (
               <div key={seg} style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <div style={{ width:24, height:3, borderRadius:99, background:routeColor(i), flexShrink:0 }}/>
+                <div style={{ width:20, height:2, borderRadius:99, background:routeColor(i), flexShrink:0 }}/>
                 <span style={{ fontSize:10, color:"#374151", lineHeight:1.3 }}>{seg}</span>
               </div>
             ))}
           </div>
         </div>
       )}
+      </div>}
     </div>
   );
 }
@@ -2963,7 +3319,7 @@ function MapFilterBar({ rows, filters, setFilters }) {
 
   const sel = (field, val) => (
     <select value={filters[field]||"all"} onChange={e => setFilters(f=>({...f,[field]:e.target.value}))}
-      style={{ padding:"5px 10px", border:`1px solid ${C.border}`, borderRadius:7, fontSize:12, background:"#fff", outline:"none", color:filters[field]&&filters[field]!=="all"?C.primary:"#374151", fontWeight:filters[field]&&filters[field]!=="all"?700:400 }}>
+      style={{ padding:"5px 10px", border:`1px solid ${C.border}`, borderRadius:6, fontSize:12, background:"#fff", outline:"none", color:filters[field]&&filters[field]!=="all"?C.primary:"#6b7280", fontWeight:filters[field]&&filters[field]!=="all"?600:400 }}>
       {val.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
     </select>
   );
@@ -3068,7 +3424,7 @@ function IngestUploader({ onLoad }) {
       rowId: `ing-${i}`,
       lmscCode: r.lmsc_code,
       lmdcCode: r.lmdc_code,
-      segment: r.segment || `${r.lmsc_code} → ${r.lmdc_code}`,
+      segment: r.segment || `${r.lmsc_code}  ${r.lmdc_code}`,
       vehicleType: r.vehicle_type,
       vehicleCount: +r.vehicle_count || 1,
       tripFrequency: r.trip_frequency || "—",
@@ -3180,7 +3536,7 @@ function IngestUploader({ onLoad }) {
 
           <div style={{ padding:"10px 14px", display:"flex", justifyContent:"flex-end", gap:8, borderTop:`1px solid ${C.border}`, background:"#fafafa" }}>
             <Btn variant="ghost" onClick={()=>{setFile(null);setParsed(null);setErrors([]);setWarnings([]);}}>Remove</Btn>
-            <Btn disabled={errors.length>0} onClick={loadToMap}>Load to Map →</Btn>
+            <Btn disabled={errors.length>0} onClick={loadToMap}>Load to Map </Btn>
           </div>
         </div>
       )}
@@ -3312,7 +3668,7 @@ function MapVisualisationTab({ designs, initialPlanId, clearInitialPlanId }) {
                 <div style={{ padding:"32px 24px", textAlign:"center", color:C.muted, background:"#f8fafc", borderRadius:12, border:`1px dashed ${C.border}` }}>
                   <div style={{ fontSize:28, marginBottom:8 }}>📋</div>
                   <div style={{ fontWeight:600, fontSize:13, marginBottom:4 }}>No ingested plans available</div>
-                  <div style={{ fontSize:12 }}>Upload a plan in Design Inputs → Design Ingestion first, then return here.</div>
+                  <div style={{ fontSize:12 }}>Upload a plan in Design Inputs  Design Ingestion first, then return here.</div>
                 </div>
               ) : (
                 <div>
@@ -3387,7 +3743,7 @@ function ReviewShell({ sub, setPage, designs, setDesigns, alignments, setAlignme
       <Tabs tabs={[{key:"review",label:"Design Review"},{key:"operations-alignment",label:"Central Planner"},{key:"ops-lead",label:"👤 Ops Lead View"},{key:"visualisation",label:"🗺️ Map Visualisation"}]} active={active} onChange={k=>setPage(`sanctity-controls/${k}`)}/>
       {active==="review"&&<DesignReview designs={designs} setDesigns={setDesigns} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId}/>}
       {active==="operations-alignment"&&<CentralPlannerAlignment alignments={alignments} setAlignments={setAlignments}/>}
-      {active==="ops-lead"&&<OpsLeadAlignment alignments={alignments} setAlignments={setAlignments}/>}
+      {active==="ops-lead"&&<OpsLeadAlignment alignments={alignments} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId}/>}
       {active==="visualisation"&&<MapVisualisationTab designs={designs} initialPlanId={mapPlanId} clearInitialPlanId={()=>setMapPlanId(null)}/>}
     </div>
   );
@@ -3410,7 +3766,7 @@ function App() {
   const [alignments,setAlignments] = useState(INIT_ALIGNMENTS);
   const [mapPlanId,setMapPlanId]   = useState(null);
 
-  // Bridge: RLH completed run → designs list
+  // Bridge: RLH completed run  designs list
   const addDesign = useCallback(newDesign => {
     setDesigns(prev => {
       const exists = prev.find(d => d.id === newDesign.id);
@@ -3430,11 +3786,13 @@ function App() {
   );
 }
 
-    // Mount
-    const _root = ReactDOM.createRoot(document.getElementById('root'));
+
+    /* ── Mount ── */
+    const _root = ReactDOM.createRoot(document.getElementById("root"));
     _root.render(React.createElement(App));
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('root').style.display = '';
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("root").style.display    = "";
   </script>
+
 </body>
 </html>
