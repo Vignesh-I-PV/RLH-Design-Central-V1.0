@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Network Design - Operations Module</title>
+  <style>
+    :root{--primary:#2d6af6;--primary-dark:#1d4ed8;--primary-light:#dbeafe;--accent:#17a98a;--accent-light:#d1fae5;--warning:#f59e0b;--warning-light:#fef3c7;--danger:#ef4444;--danger-light:#fee2e2;--muted:#6b7280;--muted-bg:#f3f5f9;--border:#e5e9f0;--card:#fff;--ink:#1a2233;--sidebar:#1e293b;--sidebar-fg:#94a3b8;--bg:#f6f8fb}*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}button,input,select{font:inherit}.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}.sidebar{background:var(--sidebar);color:#fff;padding:22px 16px;position:sticky;top:0;height:100vh}.brand{font-weight:800;font-size:18px;line-height:1.25;margin:0 0 4px}.sub{color:var(--sidebar-fg);font-size:12px;margin:0 0 22px}.nav{display:flex;flex-direction:column;gap:6px}.nav button{border:0;background:transparent;color:var(--sidebar-fg);text-align:left;padding:11px 12px;border-radius:10px;cursor:pointer;font-weight:650}.nav button.active,.nav button:hover{background:rgba(255,255,255,.09);color:#fff}.main{min-width:0}.topbar{height:64px;background:#fff;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px;position:sticky;top:0;z-index:5}.topbar h1{font-size:18px;margin:0}.topbar p{font-size:12px;color:var(--muted);margin:3px 0 0}.content{padding:24px}.grid{display:grid;gap:16px}.grid.cols4{grid-template-columns:repeat(4,minmax(0,1fr))}.grid.cols2{grid-template-columns:repeat(2,minmax(0,1fr))}.card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 24px rgba(15,23,42,.04);overflow:hidden}.card.pad{padding:18px}.metric{display:flex;align-items:flex-start;justify-content:space-between}.metric .label{font-size:11px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.5px}.metric .value{font-size:26px;font-weight:850;margin-top:7px}.pill{display:inline-flex;align-items:center;border-radius:999px;padding:4px 9px;font-size:11px;font-weight:800;background:var(--muted-bg);color:#374151}.pill.primary{background:var(--primary-light);color:var(--primary-dark)}.pill.accent{background:var(--accent-light);color:#065f46}.pill.warn{background:var(--warning-light);color:#92400e}.section-title{display:flex;align-items:center;justify-content:space-between;margin:22px 0 12px}.section-title h2{font-size:15px;margin:0}.section-title span{font-size:12px;color:var(--muted)}table{width:100%;border-collapse:collapse;background:#fff}th,td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;text-align:left;white-space:nowrap}th{background:#f8fafc;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.45px}td.num,th.num{text-align:right}.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}.tabs button,.btn{border:1px solid var(--border);background:#fff;color:#374151;border-radius:10px;padding:8px 12px;font-size:12px;font-weight:750;cursor:pointer}.tabs button.active,.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}.upload{display:flex;align-items:center;gap:12px;border:1px dashed #cbd5e1;background:#fff;border-radius:12px;padding:14px;margin-bottom:10px}.upload-icon{height:34px;width:34px;border-radius:9px;background:#f0fdf4;border:1px solid var(--border);display:flex;align-items:center;justify-content:center}.upload b{font-size:12px}.upload small{display:block;color:var(--muted);margin-top:2px}.canvas{height:280px;position:relative;background:linear-gradient(135deg,#eef4ff,#fff);border:1px solid var(--border);border-radius:14px;overflow:hidden}.node{position:absolute;transform:translate(-50%,-50%);height:14px;width:14px;border-radius:50%;background:var(--primary);box-shadow:0 0 0 6px rgba(45,106,246,.14)}.node.hub{background:var(--accent);box-shadow:0 0 0 7px rgba(23,169,138,.14)}.route{position:absolute;height:2px;background:#cbd5e1;transform-origin:left center}.legend{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-top:10px}.dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:var(--primary);margin-right:5px}.dot.green{background:var(--accent)}.hidden{display:none!important}@media(max-width:900px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto}.nav{flex-direction:row;overflow:auto}.grid.cols4,.grid.cols2{grid-template-columns:1fr}.topbar{position:relative}.content{padding:16px}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <h1 class="brand">Network Design</h1>
+      <p class="sub">Operations Module</p>
+      <nav class="nav" id="nav">
+        <button data-view="overview" class="active">Overview</button>
+        <button data-view="network">Network Map</button>
+        <button data-view="lmsc">LMSC Master</button>
+        <button data-view="vehicles">Vehicle Master</button>
+        <button data-view="uploads">CSV Uploads</button>
+      </nav>
+    </aside>
+    <main class="main">
+      <header class="topbar">
+        <div><h1 id="pageTitle">Overview</h1><p>Fast static GitHub Pages build - no React, Babel, or runtime compilation.</p></div>
+        <span class="pill accent">Active</span>
+      </header>
+      <div class="content">
+        <section id="overview" class="view">
+          <div class="grid cols4">
+            <div class="card pad metric"><div><div class="label">Facilities</div><div class="value" id="metricFacilities">10</div></div><span class="pill primary">Live</span></div>
+            <div class="card pad metric"><div><div class="label">Sort Centres</div><div class="value" id="metricSc">6</div></div><span class="pill accent">Ready</span></div>
+            <div class="card pad metric"><div><div class="label">Vehicles</div><div class="value" id="metricVehicles">17</div></div><span class="pill">Fleet</span></div>
+            <div class="card pad metric"><div><div class="label">Capacity</div><div class="value">241K</div></div><span class="pill warn">Daily</span></div>
+          </div>
+          <div class="grid cols2" style="margin-top:16px">
+            <div class="card pad">
+              <div class="section-title" style="margin-top:0"><h2>Design workflow</h2><span>4 steps</span></div>
+              <div class="upload"><div class="upload-icon">1</div><div><b>Upload network master</b><small>Hubs, gateways, spokes and DCs.</small></div></div>
+              <div class="upload"><div class="upload-icon">2</div><div><b>Configure sort centres</b><small>LMSC capacity, docks, timings and ownership.</small></div></div>
+              <div class="upload"><div class="upload-icon">3</div><div><b>Assign vehicle availability</b><small>Capacity, distance and touch-point limits.</small></div></div>
+              <div class="upload"><div class="upload-icon">4</div><div><b>Validate lanes</b><small>Review constraints before planning.</small></div></div>
+            </div>
+            <div class="card pad">
+              <div class="section-title" style="margin-top:0"><h2>Zone summary</h2><span>sample data</span></div>
+              <table><thead><tr><th>Zone</th><th class="num">Nodes</th><th class="num">Capacity</th><th>Status</th></tr></thead><tbody id="zoneRows"></tbody></table>
+            </div>
+          </div>
+        </section>
+        <section id="network" class="view hidden">
+          <div class="card pad">
+            <div class="section-title" style="margin-top:0"><h2>Network map</h2><span>schematic view</span></div>
+            <div class="canvas" id="canvas"></div>
+            <div class="legend"><span><i class="dot green"></i>Hub / Gateway</span><span><i class="dot"></i>Spoke / DC</span><span>Lines represent indicative line-haul routes</span></div>
+          </div>
+          <div class="section-title"><h2>Facilities</h2><span id="facilityCount"></span></div>
+          <div class="card"><table><thead><tr><th>Code</th><th>Name</th><th>Type</th><th>Zone</th><th class="num">Capacity</th><th>Status</th></tr></thead><tbody id="facilityRows"></tbody></table></div>
+        </section>
+        <section id="lmsc" class="view hidden">
+          <div class="section-title" style="margin-top:0"><h2>LMSC Master</h2><button class="btn primary" onclick="alert('Use CSV upload or wire this button to your backend later.')">+ Add LMSC</button></div>
+          <div class="card"><table><thead><tr><th>LMSC Code</th><th>Name</th><th>Zone</th><th class="num">SC Capacity</th><th class="num">DCs</th><th>Status</th></tr></thead><tbody id="lmscRows"></tbody></table></div>
+        </section>
+        <section id="vehicles" class="view hidden">
+          <div class="tabs" id="vehicleTabs"><button class="active" data-tab="vm">Vehicle Master</button><button data-tab="availability">SC Vehicle Availability</button></div>
+          <div id="vm" class="tabView card"><table><thead><tr><th>Vehicle Type</th><th class="num">Capacity</th><th class="num">Distance Limit</th><th class="num">TP Limit</th><th>Feasible For</th></tr></thead><tbody id="vehicleRows"></tbody></table></div>
+          <div id="availability" class="tabView card hidden"><table><thead><tr><th>SC Code</th><th>Vehicle Type</th><th class="num">Count</th><th class="num">Capacity</th><th class="num">Distance</th><th class="num">TP Limit</th></tr></thead><tbody id="availabilityRows"></tbody></table></div>
+        </section>
+        <section id="uploads" class="view hidden">
+          <div class="section-title" style="margin-top:0"><h2>CSV Uploads</h2><span>client-side placeholders</span></div>
+          <div class="grid cols2">
+            <div class="card pad"><div class="upload"><div class="upload-icon">CSV</div><div><b>Network Master</b><small>Required: Code, Name, Type, Zone, Capacity.</small></div><input type="file" accept=".csv"></div></div>
+            <div class="card pad"><div class="upload"><div class="upload-icon">CSV</div><div><b>LMSC Master</b><small>Required: LMSC Code, Name, Zone, SC Capacity.</small></div><input type="file" accept=".csv"></div></div>
+            <div class="card pad"><div class="upload"><div class="upload-icon">CSV</div><div><b>Vehicle Master</b><small>Required: Vehicle Type, Capacity, Distance Limit.</small></div><input type="file" accept=".csv"></div></div>
+            <div class="card pad"><div class="upload"><div class="upload-icon">CSV</div><div><b>SC Vehicle Availability</b><small>Required: SC Code, Vehicle Type, Count.</small></div><input type="file" accept=".csv"></div></div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    const facilities=[{code:"DEL-HUB-01",name:"Delhi Central Hub",type:"Hub",zone:"North",capacity:50000,status:"Active",x:48,y:25},{code:"BLR-HUB-01",name:"Bangalore Hub",type:"Hub",zone:"South",capacity:35000,status:"Active",x:50,y:76},{code:"BOM-GW-01",name:"Mumbai Gateway",type:"Gateway",zone:"West",capacity:45000,status:"Active",x:32,y:55},{code:"CCU-SPK-01",name:"Kolkata Spoke",type:"Spoke",zone:"East",capacity:12000,status:"Active",x:76,y:43},{code:"HYD-DC-01",name:"Hyderabad DC",type:"DC",zone:"South",capacity:28000,status:"Planned",x:52,y:61},{code:"MAA-SPK-01",name:"Chennai Spoke",type:"Spoke",zone:"South",capacity:15000,status:"Active",x:58,y:84},{code:"PNQ-GW-01",name:"Pune Gateway",type:"Gateway",zone:"West",capacity:20000,status:"Active",x:36,y:62},{code:"AMD-HUB-01",name:"Ahmedabad Hub",type:"Hub",zone:"West",capacity:22000,status:"Active",x:30,y:42},{code:"JAI-SPK-01",name:"Jaipur Spoke",type:"Spoke",zone:"North",capacity:10000,status:"Active",x:42,y:35},{code:"LKO-DC-01",name:"Lucknow DC",type:"DC",zone:"North",capacity:14000,status:"Active",x:58,y:35}];
+    const lmsc=[{code:"LMSC-BLR-01",name:"Bangalore LMSC",zone:"South",cap:9500,dcs:4,active:true},{code:"LMSC-DEL-01",name:"Delhi LMSC",zone:"North",cap:12000,dcs:5,active:true},{code:"LMSC-BOM-01",name:"Mumbai LMSC",zone:"West",cap:10500,dcs:4,active:true},{code:"LMSC-CCU-01",name:"Kolkata LMSC",zone:"East",cap:7000,dcs:3,active:true},{code:"LMSC-HYD-01",name:"Hyderabad LMSC",zone:"South",cap:8200,dcs:3,active:false},{code:"LMSC-PNQ-01",name:"Pune LMSC",zone:"West",cap:6200,dcs:2,active:true}];
+    const vehicles=[{type:"17ft",cap:250,dist:400,tp:5,feas:"FM Carting, NLH, RLH"},{type:"Bolero",cap:80,dist:150,tp:10,feas:"FM Carting"},{type:"32ft SXL",cap:550,dist:900,tp:4,feas:"NLH, RLH"},{type:"32ft MXL",cap:750,dist:1200,tp:3,feas:"NLH, RLH"},{type:"Tata Ace",cap:45,dist:90,tp:12,feas:"FM Carting"}];
+    const availability=[{sc:"LMSC-BLR-01",type:"17ft",count:4,cap:250,dist:400,tp:5},{sc:"LMSC-BLR-01",type:"Bolero",count:2,cap:80,dist:150,tp:10},{sc:"LMSC-DEL-01",type:"17ft",count:4,cap:250,dist:400,tp:5},{sc:"LMSC-DEL-01",type:"Bolero",count:3,cap:80,dist:150,tp:10},{sc:"LMSC-BOM-01",type:"32ft SXL",count:2,cap:550,dist:900,tp:4},{sc:"LMSC-CCU-01",type:"Tata Ace",count:5,cap:45,dist:90,tp:12}];
+    const fmt=n=>Number(n).toLocaleString("en-IN"); const pill=s=>`<span class="pill ${s==='Active'||s===true?'accent':s==='Planned'?'warn':''}">${s===true?'Active':s===false?'Inactive':s}</span>`;
+    function render(){document.getElementById('metricFacilities').textContent=facilities.length;document.getElementById('metricSc').textContent=lmsc.length;document.getElementById('metricVehicles').textContent=availability.reduce((a,b)=>a+b.count,0); const zones={};facilities.forEach(f=>{zones[f.zone]??={nodes:0,cap:0};zones[f.zone].nodes++;zones[f.zone].cap+=f.capacity});document.getElementById('zoneRows').innerHTML=Object.entries(zones).map(([z,v])=>`<tr><td><b>${z}</b></td><td class="num">${v.nodes}</td><td class="num">${fmt(v.cap)}</td><td>${pill('Active')}</td></tr>`).join(''); document.getElementById('facilityCount').textContent=`${facilities.length} nodes`;document.getElementById('facilityRows').innerHTML=facilities.map(f=>`<tr><td><b>${f.code}</b></td><td>${f.name}</td><td>${f.type}</td><td>${f.zone}</td><td class="num">${fmt(f.capacity)}</td><td>${pill(f.status)}</td></tr>`).join(''); document.getElementById('lmscRows').innerHTML=lmsc.map(r=>`<tr><td><b>${r.code}</b></td><td>${r.name}</td><td>${r.zone}</td><td class="num">${fmt(r.cap)}</td><td class="num">${r.dcs}</td><td>${pill(r.active)}</td></tr>`).join(''); document.getElementById('vehicleRows').innerHTML=vehicles.map(v=>`<tr><td><b>${v.type}</b></td><td class="num">${fmt(v.cap)}</td><td class="num">${fmt(v.dist)} km</td><td class="num">${v.tp}</td><td>${v.feas}</td></tr>`).join(''); document.getElementById('availabilityRows').innerHTML=availability.map(v=>`<tr><td><b>${v.sc}</b></td><td>${v.type}</td><td class="num">${v.count}</td><td class="num">${fmt(v.cap)}</td><td class="num">${fmt(v.dist)} km</td><td class="num">${v.tp}</td></tr>`).join(''); drawMap();}
+    function drawMap(){const c=document.getElementById('canvas');c.innerHTML='';const routes=[[0,8],[0,9],[0,3],[2,7],[2,6],[2,4],[1,4],[1,5],[4,3]];routes.forEach(([a,b])=>{const A=facilities[a],B=facilities[b],x1=A.x,y1=A.y,x2=B.x,y2=B.y,dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy),ang=Math.atan2(dy,dx)*180/Math.PI;const line=document.createElement('div');line.className='route';line.style.left=x1+'%';line.style.top=y1+'%';line.style.width=len+'%';line.style.transform=`rotate(${ang}deg)`;c.appendChild(line)});facilities.forEach(f=>{const n=document.createElement('div');n.className='node '+((f.type==='Hub'||f.type==='Gateway')?'hub':'');n.style.left=f.x+'%';n.style.top=f.y+'%';n.title=`${f.code} - ${f.name}`;c.appendChild(n)});}
+    document.getElementById('nav').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;document.querySelectorAll('.nav button').forEach(b=>b.classList.remove('active'));e.target.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));document.getElementById(e.target.dataset.view).classList.remove('hidden');document.getElementById('pageTitle').textContent=e.target.textContent;});
+    document.getElementById('vehicleTabs').addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;document.querySelectorAll('#vehicleTabs button').forEach(b=>b.classList.remove('active'));e.target.classList.add('active');document.querySelectorAll('.tabView').forEach(v=>v.classList.add('hidden'));document.getElementById(e.target.dataset.tab).classList.remove('hidden');});
+    render();
+  </script>
+</body>
+</html>
