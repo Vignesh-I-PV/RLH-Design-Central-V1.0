@@ -1,0 +1,33 @@
+Context on the React UI build from an artifact on Claude
+What this is:
+ A single-file React app (no build toolchain — runs via Babel standalone in the browser). All components use inline styles with a shared design token object C. The file is ~3,700 lines.
+Architecture summary:
+State is lifted to App root: designs, alignments, mapPlanId
+addDesign callback bridges RLH Planning completed runs → Design Review
+Navigation via page string (e.g. "design-inputs/volume-inputs")
+All components are module-level functions — no nested component definitions
+Module structure (in order):
+Design tokens (C), seed data (LMSC_DATA, DESIGN_SEEDS, INIT_ALIGNMENTS, SC_POCS, VM_SEED, SC_MASTER_SEED, SCV_SEED, VEHICLE_TYPES, TP_LIMITS, LMDC_LANDING_FILES)
+Shared primitives: Badge, StatusBadge, Btn, Input, SelectInput, FieldLabel, Card, Modal, Tabs, Breadcrumb
+Upload components: UploadCard, CsvUploadCard — compact inline row with CSV file icon + template download icon
+Sidebar, Dashboard
+Design Inputs:DesignInputs → NodeInputs (3-step: AutoDML view with LMSC filter + flag filter, Node Additions, Node Migrations) → NodeVehicleMaster (3 sub-tabs: Sort Centre Master, SC Vehicle Availability, Vehicle Master — each with bulk CSV upload + Add/Edit/Delete modals) → Design Ingestion
+Design Creation:RLHPlanning (3-step wizard: Node Selection with searchable multi-select SC bar + zone chips + expandable SC cards + CSV download → Vehicle Selection with Serve Type Local/Non-Local/Both → Preview & Trigger with HW parameter, reference plan, violation acknowledgement, run queue that calls addDesign on completion) → Mapping placeholder
+Validation:validateRLHPlan, parseCSV, validateIngestRow, INGEST_TEMPLATE
+Design Review:PocModal, PlanCard (compact upload cards, 3 headline metrics + expandable, push as primary action), DesignReview (search bar, RLH plans list)
+Ops Alignment — Ops Lead:OpsLeadAlignment (summary strip with 3 filter tabs: Pending Feedback / Feedback Acknowledged / Finalised; per-plan: 6 metrics, expandable route table with row-level Pending/Aligned/Needs Change status + expanded edit fields for SC lat/lng, DC lat/lng, DC TP, Route Code, Distance, Remarks; Validate Changes runs 4 rules; Simulate side-by-side maps; Submit locked on failures; locked on CP acknowledgement)
+Ops Alignment — Central Planner:SimulateModal, FinaliseModal, SendBackModal, RowReviewTable, CentralPlannerAlignment (summary filter strip, feedback gate, acknowledge, row Accept/Reject, simulate, finalise with version log, send back)
+Map:ROUTE_COLORS, routeColor, NODE_TYPE_META, INGEST_TEMPLATE, RouteMapSVG (Bézier arc plot, hover tooltips), MapLegend (collapsed by default), MapFilterBar (4 filters + active count + clear), IngestUploader, INGESTED_PLANS_STORE, MapVisualisationTab (Source A: generated plans; Source B: from Design Ingestion or custom upload)
+Shell:ReviewShell, Router, App
+Key constraints — always preserve these:
+CsvUploadCard and UploadCard are module-level (never nest inside another component)
+scSearch state is in RLHPlanning scope — not inside an IIFE
+designs, alignments, mapPlanId are lifted to App root — not inside ReviewShell
+The addDesign callback is threaded: App → Router → DesignCreation → RLHPlanning
+setMapPlanId and setPage are threaded into OpsLeadAlignment and PlanCard
+index.html is built by embedding the .jsx source inside a <script type="text/babel"> tag — export default is stripped and React hooks are destructured from the global React object. Never use sed to do this substitution — always use Python exact string replacement to avoid double-substitution bugs
+Known open items (not yet built):
+D1: Node & Vehicle Master data not shared with RLH Planning (both use separate constants)
+D2: ReviewShell state resets on nav (partially fixed by lifting to App, but RLHPlanning run queue still resets)
+U3: Zone filter in Map Viz needs lmscCode populated on triggered runs
+Please read the attached file now and confirm you have it before I give you the next instruction.
