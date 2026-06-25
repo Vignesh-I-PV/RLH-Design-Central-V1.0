@@ -1,9 +1,28 @@
-<script type="text/babel" data-presets="react">
-    // Expose React hooks as globals (UMD build puts them on window.React)
-    const { useState, useCallback, useMemo, useEffect, useRef, createContext, useContext } = React;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Network Design — Operations Module</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+    #root{height:100vh}
+    #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;color:#6b7280;font-size:14px}
+    .spinner{width:36px;height:36px;border:3px solid #e5e9f0;border-top-color:#2d6af6;border-radius:50%;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div><span>Loading…</span></div>
+  <div id="root" style="display:none"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script type="text/babel" data-presets="react">
+const { useState, useCallback, useMemo, useEffect, useRef, createContext, useContext } = React;
+const ReactDOM = window.ReactDOM;
 
-
-// React hooks available as globals via UMD
 
 // ─── Design tokens ────────────────────────────────────────────────────────
 const C = {
@@ -1809,6 +1828,46 @@ function PocModal({ open, onClose, scId, onPush, hasWarnings }) {
   );
 }
 
+// ─── PlanCard metrics sub-component (extracted from IIFE — Rules of Hooks) ──
+function PlanCardMetrics({ coveragePct, m, vehicleStr }) {
+  const [showAll, setShowAll] = useState(false);
+  const headline = [
+    ["Coverage", `${coveragePct}%`, coveragePct === 100 ? "#16a34a" : C.danger],
+    ["CPS", `₹${m.cps ?? "—"}`, "#374151"],
+    ["Utilisation", `${m.utilPct ?? "—"}%`, (m.utilPct > 90 || m.utilPct < 40) ? C.warning : "#374151"],
+  ];
+  const extra = [
+    ["Routes", m.totalRoutes ?? "—"],
+    ["Vehicles", vehicleStr],
+    ["Distance", `${(m.totalDistance ?? 0).toLocaleString()} km`],
+    ["Total Cost", `₹${(m.totalCost ?? 0).toLocaleString()}`],
+  ];
+  return (
+    <div style={{borderBottom:`1px solid ${C.border}`}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr) auto",borderBottom:showAll?`1px solid ${C.border}`:"none"}}>
+        {headline.map(([label,value,col],i)=>(
+          <div key={label} style={{padding:"10px 14px",borderRight:`1px solid ${C.border}`}}>
+            <div style={{fontSize:15,fontWeight:700,color:col}}>{value}</div>
+            <div style={{fontSize:10,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+          </div>
+        ))}
+        <button onClick={()=>setShowAll(s=>!s)}
+          style={{padding:"10px 14px",border:"none",background:"none",cursor:"pointer",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>
+          {showAll?"Less":"More metrics"}
+        </button>
+      </div>
+      {showAll&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",background:"#f9fafb"}}>
+        {extra.map(([label,value],i)=>(
+          <div key={label} style={{padding:"8px 14px",borderRight:i<3?`1px solid ${C.border}`:"none"}}>
+            <div style={{fontSize:12,fontWeight:600,color:"#374151"}}>{value}</div>
+            <div style={{fontSize:10,color:C.muted,marginTop:1,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+}
+
 // ─── Single plan card ─────────────────────────────────────────────────────
 function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
   const [expanded, setExpanded] = useState(false);
@@ -1919,44 +1978,7 @@ function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
       </div>
 
       {/* ── 3 headline metrics + expandable ── */}
-      {(()=>{
-        const [showAll,setShowAll]=useState(false);
-        const headline=[
-          ["Coverage",`${coveragePct}%`, coveragePct===100?"#16a34a":C.danger],
-          ["CPS",`₹${m.cps??"—"}`, "#374151"],
-          ["Utilisation",`${m.utilPct??"—"}%`, (m.utilPct>90||m.utilPct<40)?C.warning:"#374151"],
-        ];
-        const extra=[
-          ["Routes", m.totalRoutes??"—"],
-          ["Vehicles", vehicleStr],
-          ["Distance", `${(m.totalDistance??0).toLocaleString()} km`],
-          ["Total Cost", `₹${(m.totalCost??0).toLocaleString()}`],
-        ];
-        return (
-          <div style={{borderBottom:`1px solid ${C.border}`}}>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr) auto",borderBottom:showAll?`1px solid ${C.border}`:"none"}}>
-              {headline.map(([label,value,col],i)=>(
-                <div key={label} style={{padding:"10px 14px",borderRight:`1px solid ${C.border}`}}>
-                  <div style={{fontSize:15,fontWeight:700,color:col}}>{value}</div>
-                  <div style={{fontSize:10,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
-                </div>
-              ))}
-              <button onClick={()=>setShowAll(s=>!s)}
-                style={{padding:"10px 14px",border:"none",background:"none",cursor:"pointer",fontSize:11,color:C.muted,whiteSpace:"nowrap"}}>
-                {showAll?"Less":"More metrics"}
-              </button>
-            </div>
-            {showAll&&<div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",background:"#f9fafb"}}>
-              {extra.map(([label,value],i)=>(
-                <div key={label} style={{padding:"8px 14px",borderRight:i<3?`1px solid ${C.border}`:"none"}}>
-                  <div style={{fontSize:12,fontWeight:600,color:"#374151"}}>{value}</div>
-                  <div style={{fontSize:10,color:C.muted,marginTop:1,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
-                </div>
-              ))}
-            </div>}
-          </div>
-        );
-      })()}
+      <PlanCardMetrics coveragePct={coveragePct} m={m} vehicleStr={vehicleStr}/>
 
       {/* ── Expand toggle ── */}
       <button onClick={() => setExpanded(e => !e)}
@@ -2103,6 +2125,21 @@ function DesignReview({ designs, setDesigns, setAlignments, setPage, setMapPlanI
       ))}
     </div>
   );
+}
+
+// ─── OpsLead Simulate sub-panels (extracted from IIFE — Rules of Hooks) ──
+function OpsLeadSimPanelOrig({ rows }) {
+  const [f, setF] = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
+  return <><MapFilterBar rows={rows} filters={f} setFilters={setF}/><RouteMapSVG rows={rows} filters={f}/></>;
+}
+
+function OpsLeadSimPanelFb({ rows, planId, getRow }) {
+  const [f, setF] = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
+  const fbRows = rows.map(r => {
+    const fb = getRow(planId, r.rowId);
+    return { ...r, routeDistanceKm: fb.distance ? +fb.distance : r.routeDistanceKm };
+  });
+  return <><MapFilterBar rows={fbRows} filters={f} setFilters={setF}/><RouteMapSVG rows={fbRows} filters={f}/></>;
 }
 
 // ─── Ops Lead Alignment — full rebuild ────────────────────────────────────
@@ -2572,22 +2609,11 @@ function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) 
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:"#374151",marginBottom:6}}>Original Plan</div>
-                    {(()=>{
-                      const [f,setF]=useState({lmdcSearch:"",route:"all",vehicleType:"all",zone:"all"});
-                      return <><MapFilterBar rows={rows} filters={f} setFilters={setF}/><RouteMapSVG rows={rows} filters={f}/></>;
-                    })()}
+                    <OpsLeadSimPanelOrig rows={rows}/>
                   </div>
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:"#374151",marginBottom:6}}>Feedback Plan <span style={{color:C.warning,fontWeight:400}}>(changes highlighted)</span></div>
-                    {(()=>{
-                      const [f,setF]=useState({lmdcSearch:"",route:"all",vehicleType:"all",zone:"all"});
-                      // Build feedback-adjusted rows
-                      const fbRows = rows.map(r=>{
-                        const fb = getRow(plan.id, r.rowId);
-                        return { ...r, routeDistanceKm: fb.distance?+fb.distance:r.routeDistanceKm };
-                      });
-                      return <><MapFilterBar rows={fbRows} filters={f} setFilters={setF}/><RouteMapSVG rows={fbRows} filters={f}/></>;
-                    })()}
+                    <OpsLeadSimPanelFb rows={rows} planId={plan.id} getRow={getRow}/>
                   </div>
                 </div>
                 <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}>
@@ -3750,3 +3776,5 @@ function App() {
     document.getElementById('loading').style.display = 'none';
     document.getElementById('root').style.display = '';
   </script>
+</body>
+</html>
