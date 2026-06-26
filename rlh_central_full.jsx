@@ -1,7 +1,6 @@
 const { useState, useCallback, useMemo, useEffect, useRef, createContext, useContext } = React;
 const ReactDOM = window.ReactDOM;
 
-
 // ─── Design tokens ────────────────────────────────────────────────────────
 const C = {
   primary:"#2d6af6", primaryLight:"#dbeafe", primaryDark:"#1d4ed8",
@@ -365,12 +364,70 @@ function Dashboard({ setPage }) {
   );
 }
 
+// ─── Upload history log (last 5 submissions per card) ────────────────────
+const MOCK_UPLOADER_ID = "vignesh.i@meesho.com"; // simulated logged-in user
+
+function UploadHistory({ history }) {
+  if (!history || history.length === 0) return null;
+  return (
+    <div style={{marginTop:4,marginBottom:8,borderRadius:7,border:`1px solid ${C.border}`,overflow:"hidden",background:"#fff"}}>
+      <div style={{padding:"5px 12px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",gap:6}}>
+        <span style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted}}>Last {history.length} Upload{history.length!==1?"s":""}</span>
+      </div>
+      <table style={{width:"100%",borderCollapse:"collapse"}}>
+        <thead>
+          <tr style={{background:"#f8fafc"}}>
+            {["File Name","Uploader","Timestamp","Rows","Status"].map((h,i)=>(
+              <th key={i} style={{padding:"5px 12px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:i>2?"right":"left",borderBottom:`1px solid ${C.border}`,whiteSpace:"nowrap"}}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {history.map((h,i)=>(
+            <tr key={i} style={{background:i===0?"#f0fdf4":"#fff"}}>
+              <td style={{padding:"5px 12px",fontSize:11,borderBottom:i<history.length-1?`1px solid ${C.border}`:"none",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",fontFamily:"monospace"}}>{h.fileName}</td>
+              <td style={{padding:"5px 12px",fontSize:11,borderBottom:i<history.length-1?`1px solid ${C.border}`:"none",color:C.muted}}>{h.uploaderId}</td>
+              <td style={{padding:"5px 12px",fontSize:11,borderBottom:i<history.length-1?`1px solid ${C.border}`:"none",color:C.muted,whiteSpace:"nowrap"}}>{h.timestamp}</td>
+              <td style={{padding:"5px 12px",fontSize:11,borderBottom:i<history.length-1?`1px solid ${C.border}`:"none",textAlign:"right",fontWeight:600}}>{h.rowCount.toLocaleString()}</td>
+              <td style={{padding:"5px 12px",fontSize:11,borderBottom:i<history.length-1?`1px solid ${C.border}`:"none",textAlign:"right"}}>
+                {i===0
+                  ? <span style={{padding:"1px 7px",borderRadius:99,fontSize:10,fontWeight:700,background:"#dcfce7",color:"#16a34a"}}>Latest</span>
+                  : <span style={{padding:"1px 7px",borderRadius:99,fontSize:10,background:"#f3f4f6",color:C.muted}}>Prior</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ─── Upload card ──────────────────────────────────────────────────────────
-function UploadCard({ label, desc, cols=[] }) {
+function UploadCard({ label, desc, cols=[], onSubmit }) {
   const [file,setFile]=useState(null);
   const [status,setStatus]=useState("idle");
+  const [rowCount,setRowCount]=useState(0);
   const ref=useRef(null);
-  const handle=ev=>{const f=ev.target.files?.[0];if(!f)return;setFile(f.name);setStatus("ready");ev.target.value="";};
+  const handle=ev=>{
+    const f=ev.target.files?.[0];if(!f)return;
+    setFile(f.name);setStatus("ready");
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const lines=e.target.result.trim().split(/\r?\n/).filter(l=>l.trim());
+      setRowCount(Math.max(0,lines.length-1)); // subtract header row
+    };
+    reader.readAsText(f);
+    ev.target.value="";
+  };
+  const handleSubmit=()=>{
+    setStatus("submitted");
+    if(onSubmit) onSubmit({
+      fileName:file,
+      rowCount,
+      uploaderId:MOCK_UPLOADER_ID,
+      timestamp:new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}),
+    });
+  };
   return (
     <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:"#fff",border:`1px solid ${status==="submitted"?"#16a34a":status==="ready"?C.primary:C.border}`,borderRadius:8,marginBottom:8}}>
       <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
@@ -387,7 +444,6 @@ function UploadCard({ label, desc, cols=[] }) {
       </div>
       {/* Actions */}
       <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-        {/* Template download icon */}
         <button title="Download template CSV" onClick={e=>{e.stopPropagation();}}
           style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",flexShrink:0}}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -395,9 +451,9 @@ function UploadCard({ label, desc, cols=[] }) {
           </svg>
         </button>
         {status==="submitted"
-          ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={()=>{setFile(null);setStatus("idle");}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
+          ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={()=>{setFile(null);setStatus("idle");setRowCount(0);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
           : status==="ready"
-            ? <><Btn size="sm" onClick={()=>setStatus("submitted")}>Submit</Btn><button onClick={()=>{setFile(null);setStatus("idle");}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+            ? <><Btn size="sm" onClick={handleSubmit}>Submit</Btn><button onClick={()=>{setFile(null);setStatus("idle");setRowCount(0);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
             : <button onClick={()=>ref.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
       </div>
     </div>
@@ -405,10 +461,11 @@ function UploadCard({ label, desc, cols=[] }) {
 }
 
 // ─── Validated CSV Upload Card (module-level, compact inline row) ─────────
-function CsvUploadCard({ label, desc, cols, onLoad }) {
+function CsvUploadCard({ label, desc, cols, onLoad, onSubmit }) {
   const [file, setFile]    = useState(null);
   const [status,setStatus] = useState("idle");
   const [errors,setErrors] = useState([]);
+  const [_csvRowCount, _setCsvRowCount] = useState(0);
   const ref = useRef(null);
   const handle = ev => {
     const f = ev.target.files?.[0]; if(!f)return;
@@ -416,6 +473,7 @@ function CsvUploadCard({ label, desc, cols, onLoad }) {
     const reader = new FileReader();
     reader.onload = e => {
       const {headers,rows} = parseCSV(e.target.result);
+      _setCsvRowCount(rows.length);
       const missing = (cols||[]).filter(c=>c.endsWith(" *")).map(c=>c.replace(" *","").toLowerCase()).filter(c=>!headers.includes(c));
       if(missing.length){ setErrors([`Missing: ${missing.join(", ")}`]); setStatus("error"); return; }
       if(onLoad) onLoad(rows.length ? e.target.result : "", rows);
@@ -451,7 +509,15 @@ function CsvUploadCard({ label, desc, cols, onLoad }) {
           {status==="submitted"
             ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
             : status==="ready"
-              ? <><Btn size="sm" onClick={()=>setStatus("submitted")}>Submit</Btn><button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+              ? <><Btn size="sm" onClick={()=>{
+                  setStatus("submitted");
+                  if(onSubmit) onSubmit({
+                    fileName:file,
+                    rowCount:_csvRowCount,
+                    uploaderId:MOCK_UPLOADER_ID,
+                    timestamp:new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}),
+                  });
+                }}>Submit</Btn><button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
               : status==="error"
                 ? <button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.danger,background:"none",border:"none",cursor:"pointer"}}>Clear ✕</button>
                 : <button onClick={()=>ref.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
@@ -461,149 +527,531 @@ function CsvUploadCard({ label, desc, cols, onLoad }) {
   );
 }
 
+// ─── LMDC Landing Upload Card (schema-driven, template-downloadable) ────────
+function LmdcLandingUploadCard({ onSubmit }) {
+  const [file,   setFile]   = useState(null);
+  const [status, setStatus] = useState("idle"); // idle|ready|error|submitted
+  const [errors, setErrors] = useState([]);
+  const [warnings, setWarnings] = useState([]);
+  const [preview, setPreview]   = useState(null); // [{lmdcCode, plannedVolume}]
+  const ref = useRef(null);
+
+  const handle = ev => {
+    const f = ev.target.files?.[0]; if (!f) return;
+    setFile(f.name); setErrors([]); setWarnings([]); setPreview(null);
+    const reader = new FileReader();
+    reader.onload = e => {
+      const { headers, rows } = parseCSV(e.target.result);
+      // Check mandatory columns present
+      const missingCols = LMDC_LANDING_SCHEMA.columns
+        .filter(c => c.mandatory)
+        .filter(c => !headers.includes(c.key));
+      if (missingCols.length) {
+        setErrors([{ rowNum: null, field: "__file", msg: `Missing mandatory columns: ${missingCols.map(c=>c.name).join(", ")}` }]);
+        setStatus("error"); return;
+      }
+      const { errors: errs, warnings: warns } = LMDC_LANDING_SCHEMA.validate(rows);
+      setErrors(errs);
+      setWarnings(warns);
+      setPreview(rows.slice(0, 5).map(r => ({
+        lmdcCode: r["lmdc code"] || "—",
+        plannedVolume: r["planned volume"] || "—",
+      })));
+      setStatus(errs.length ? "error" : "ready");
+    };
+    reader.readAsText(f);
+    ev.target.value = "";
+  };
+
+  const reset = () => { setFile(null); setStatus("idle"); setErrors([]); setWarnings([]); setPreview(null); };
+
+  const borderColor = status === "submitted" ? "#16a34a"
+    : status === "error"  ? C.danger
+    : status === "ready"  ? C.primary
+    : C.border;
+
+  return (
+    <div style={{marginBottom:8}}>
+      <div style={{border:`1px solid ${borderColor}`,borderRadius:8,overflow:"hidden",background:"#fff"}}>
+        {/* Main row */}
+        <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
+          <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
+          {/* CSV icon */}
+          <div onClick={()=>ref.current?.click()} title="Upload CSV"
+            style={{width:32,height:32,background:"#f0fdf4",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",border:`1px solid ${status==="submitted"?"#16a34a":C.border}`,flexShrink:0}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={status==="submitted"?"#16a34a":status==="error"?C.danger:"#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+            </svg>
+          </div>
+          {/* Label */}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:12,fontWeight:600,color:"#1a2233"}}>LMDC Landing</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:1}}>LMDC-level expected landing volumes · Used in RLH Planning as the volume file</div>
+            {file && <div style={{fontSize:11,color:status==="error"?C.danger:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{status==="error"?errors[0]?.msg:file}</div>}
+          </div>
+          {/* Actions */}
+          <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+            {/* Template download */}
+            <button title="Download template CSV" onClick={e=>{e.stopPropagation(); LMDC_LANDING_SCHEMA.downloadTemplate();}}
+              style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",fontSize:11,fontWeight:600,borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",color:C.muted,whiteSpace:"nowrap"}}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Template
+            </button>
+            {status === "submitted"
+              ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={reset} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
+              : status === "ready"
+                ? <><Btn size="sm" onClick={()=>{
+                    setStatus("submitted");
+                    if(onSubmit) onSubmit({
+                      fileName:file,
+                      rowCount: preview ? preview.length : 0,
+                      uploaderId:MOCK_UPLOADER_ID,
+                      timestamp:new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}),
+                    });
+                  }}>Submit</Btn><button onClick={reset} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+                : status === "error"
+                  ? <button onClick={reset} style={{fontSize:11,color:C.danger,background:"none",border:"none",cursor:"pointer"}}>Clear ✕</button>
+                  : <button onClick={()=>ref.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
+          </div>
+        </div>
+
+        {/* Schema info strip (always visible when idle) */}
+        {status === "idle" && (
+          <div style={{padding:"6px 14px 8px",background:"#f8fafc",borderTop:`1px solid ${C.border}`,display:"flex",gap:16,fontSize:11,color:C.muted}}>
+            <span><b style={{color:"#374151"}}>LMDC Code</b> · Mandatory · alphanumeric · 3–30 chars</span>
+            <span style={{color:C.border}}>|</span>
+            <span><b style={{color:"#374151"}}>Planned Volume</b> · Mandatory · number · must be &gt; 0</span>
+          </div>
+        )}
+
+        {/* Validation errors */}
+        {errors.length > 0 && status !== "submitted" && (
+          <div style={{padding:"8px 14px",background:C.dangerLight,borderTop:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:C.danger,marginBottom:4}}>
+              🚫 {errors.length} error{errors.length!==1?"s":""} — fix before submitting
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:80,overflowY:"auto"}}>
+              {errors.map((e,i)=>(
+                <div key={i} style={{fontSize:11,color:"#7f1d1d"}}>
+                  {e.rowNum ? `Row ${e.rowNum} · ` : ""}<b>{e.field}</b>: {e.msg}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Warnings */}
+        {warnings.length > 0 && status !== "submitted" && (
+          <div style={{padding:"8px 14px",background:C.warningLight,borderTop:`1px solid ${C.border}`}}>
+            <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#92400e",marginBottom:4}}>
+              ⚠ {warnings.length} warning{warnings.length!==1?"s":""}
+            </div>
+            {warnings.map((w,i)=>(
+              <div key={i} style={{fontSize:11,color:"#92400e"}}>Row {w.rowNum} · <b>{w.field}</b>: {w.msg}</div>
+            ))}
+          </div>
+        )}
+
+        {/* Preview table */}
+        {preview && status !== "submitted" && (
+          <div style={{borderTop:`1px solid ${C.border}`,overflowX:"auto"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{background:"#f8fafc"}}>
+                  {["LMDC Code","Planned Volume"].map((h,i)=>(
+                    <th key={i} style={{padding:"5px 12px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                  ))}
+                  <th style={{padding:"5px 12px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",borderBottom:`1px solid ${C.border}`}}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((row,i)=>{
+                  const rowErrors = errors.filter(e=>e.rowNum===i+2);
+                  const ok = rowErrors.length === 0;
+                  return (
+                    <tr key={i} style={{background:ok?"#fff":"#fff5f5"}}>
+                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`,fontFamily:"monospace"}}>{row.lmdcCode}</td>
+                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`}}>{row.plannedVolume}</td>
+                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`}}>
+                        {ok
+                          ? <span style={{color:"#16a34a",fontWeight:500}}>✓ Valid</span>
+                          : <span style={{color:C.danger,fontWeight:500}}>✗ {rowErrors[0]?.msg}</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {preview.length < errors.filter(e=>e.rowNum).length && (
+              <div style={{padding:"4px 12px",fontSize:10,color:C.muted,background:"#f8fafc"}}>Showing first 5 rows · {errors.filter(e=>e.rowNum).length} total errors</div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Design Inputs ────────────────────────────────────────────────────────
 function DesignInputs({ sub, setPage }) {
   const active=["volume-inputs","node-master","node-vehicle-master","design-ingestion"].includes(sub)?sub:"volume-inputs";
+
+  // Upload history: keyed by card label, last 5 entries each
+  const [uploadHistory, setUploadHistory] = useState({});
+  const addHistory = useCallback((cardKey, entry) => {
+    setUploadHistory(prev => {
+      const existing = prev[cardKey] || [];
+      const updated = [entry, ...existing].slice(0, 5);
+      return { ...prev, [cardKey]: updated };
+    });
+  }, []);
+
   return (
     <div style={{padding:"28px 32px",maxWidth:980}}>
       <Breadcrumb items={[{label:"Dashboard",page:"dashboard"},{label:"Design Inputs"}]} setPage={setPage}/>
       <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:800}}>Design Inputs</h1><p style={{color:C.muted,marginTop:4,fontSize:13}}>Upload and manage all input data for network design.</p></div>
       <Tabs tabs={[{key:"volume-inputs",label:"1A. Volume Inputs"},{key:"node-master",label:"1B. Node Inputs"},{key:"node-vehicle-master",label:"1C. Node & Vehicle Master"},{key:"design-ingestion",label:"1D. Design Ingestion"}]} active={active} onChange={k=>setPage(`design-inputs/${k}`)}/>
+
       {active==="volume-inputs"&&<div>
-        <div style={{padding:"10px 14px",background:"#eef4ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,marginBottom:20,display:"flex",gap:8}}><div style={{fontSize:12,color:C.muted}}>Mandatory columns are validated on upload. Download the template CSV for the exact column format.</div></div>
-        <CsvUploadCard label="FM Hub Manifestation" desc="Planned shipment volumes per FM Hub. FM Hub Code and Planned Volume are mandatory." cols={["fm hub code *","planned volume *"]}/>
-        <CsvUploadCard label="FMSC Manifestation" desc="Planned volumes per First-Mile Sort Centre." cols={["fmsc code *","planned volume *"]}/>
-        <CsvUploadCard label="LMSC Landing" desc="Expected volumes landing at each Last-Mile Sort Centre." cols={["lmsc code *","planned volume *"]}/>
-        <CsvUploadCard label="LMDC Landing" desc="LMDC-level expected landing volumes. Used in RLH Planning as the volume file." cols={["lmdc code *","planned volume *"]}/>
+        <div style={{padding:"10px 14px",background:"#eef4ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,marginBottom:20,display:"flex",gap:8}}>
+          <div style={{fontSize:12,color:C.muted}}>Mandatory columns are validated on upload. Download the template CSV for the exact column format.</div>
+        </div>
+
+        <CsvUploadCard label="FM Hub Manifestation" desc="Planned shipment volumes per FM Hub." cols={["fm hub code *","planned volume *"]}
+          onSubmit={e=>addHistory("FM Hub Manifestation",e)}/>
+        <UploadHistory history={uploadHistory["FM Hub Manifestation"]}/>
+
+        <CsvUploadCard label="FMSC Manifestation" desc="Planned volumes per First-Mile Sort Centre." cols={["fmsc code *","planned volume *"]}
+          onSubmit={e=>addHistory("FMSC Manifestation",e)}/>
+        <UploadHistory history={uploadHistory["FMSC Manifestation"]}/>
+
+        <CsvUploadCard label="LMSC Landing" desc="Expected volumes landing at each Last-Mile Sort Centre." cols={["lmsc code *","planned volume *"]}
+          onSubmit={e=>addHistory("LMSC Landing",e)}/>
+        <UploadHistory history={uploadHistory["LMSC Landing"]}/>
+
+        <LmdcLandingUploadCard onSubmit={e=>addHistory("LMDC Landing",e)}/>
+        <UploadHistory history={uploadHistory["LMDC Landing"]}/>
       </div>}
+
       {active==="node-master"&&<NodeInputs/>}
       {active==="node-vehicle-master"&&<NodeVehicleMaster/>}
+
       {active==="design-ingestion"&&<div>
-        <UploadCard label="A. FM Carting Plan" desc="Upload FM Carting plan CSV." cols={["fmh_code *","fmsc_code *","vehicle_type *","vehicle_count *"]}/>
-        <UploadCard label="B. NLH Plan" desc="Upload NLH plan CSV." cols={["fmsc_code *","lmsc_code *","vehicle_type *","vehicle_count *"]}/>
-        <UploadCard label="C. RLH Plan" desc="Upload RLH plan CSV." cols={["lmsc_code *","lmdc_code *","vehicle_type *","vehicle_count *"]}/>
+        <UploadCard label="A. FM Carting Plan" desc="Upload FM Carting plan CSV." cols={["fmh_code *","fmsc_code *","vehicle_type *","vehicle_count *"]}
+          onSubmit={e=>addHistory("FM Carting Plan",e)}/>
+        <UploadHistory history={uploadHistory["FM Carting Plan"]}/>
+
+        <UploadCard label="B. NLH Plan" desc="Upload NLH plan CSV." cols={["fmsc_code *","lmsc_code *","vehicle_type *","vehicle_count *"]}
+          onSubmit={e=>addHistory("NLH Plan",e)}/>
+        <UploadHistory history={uploadHistory["NLH Plan"]}/>
+
+        <UploadCard label="C. RLH Plan" desc="Upload RLH plan CSV." cols={["lmsc_code *","lmdc_code *","vehicle_type *","vehicle_count *"]}
+          onSubmit={e=>addHistory("RLH Plan",e)}/>
+        <UploadHistory history={uploadHistory["RLH Plan"]}/>
       </div>}
     </div>
   );
 }
 
 function NodeInputs() {
-  const [step,setStep]=useState(1);
-  const [lmscFilter,setLmscFilter]=useState("all"); // "all" | lmscCode
-  const [flagFilter,setFlagFilter]=useState("all"); // "all"|"errors"|"warnings"|"clean"
+  const [step, setStep] = useState(1);
+  const [lmscFilter, setLmscFilter] = useState("all");
+  // warnFilter: "all" | "inactive" | "zerocap" | "multisc"
+  const [warnFilter, setWarnFilter] = useState("all");
 
-  const allLinks=LMSC_DATA.flatMap(sc=>sc.dcs.map(dc=>({...dc,lmscCode:sc.lmscCode,lmscName:sc.lmscName,zone:sc.zone,lmscCap:sc.scCapacity})));
+  // ── Build full link list ─────────────────────────────────────────────────
+  const allLinks = LMSC_DATA.flatMap(sc =>
+    sc.dcs.map(dc => ({ ...dc, lmscCode: sc.lmscCode, lmscName: sc.lmscName, zone: sc.zone, lmscCap: sc.scCapacity }))
+  );
 
-  // Compute per-row flags
-  const withFlags=allLinks.map(l=>{
-    const flags=[];
-    if(!l.active)flags.push({t:"danger",m:"Inactive"});
-    if(l.active&&l.capacity<=0)flags.push({t:"warning",m:"Zero Cap"});
-    if(l.mappedScs.length>1)flags.push({t:"warning",m:"Multi-SC"});
-    return {...l,flags};
+  // ── Attach warning flags to every link ───────────────────────────────────
+  const withFlags = allLinks.map(l => {
+    const warns = [];
+    if (!l.active)                   warns.push({ key:"inactive", m:"Link active, node inactive" });
+    if (l.active && l.capacity <= 0) warns.push({ key:"zerocap",  m:"Link active, zero capacity" });
+    if (l.mappedScs.length > 1)      warns.push({ key:"multisc",  m:"Mapped to >1 SC" });
+    return { ...l, warns };
   });
 
-  // Filter by LMSC then by flag category
-  const visible=withFlags
-    .filter(l=>lmscFilter==="all"||l.lmscCode===lmscFilter)
-    .filter(l=>{
-      if(flagFilter==="errors")return l.flags.some(f=>f.t==="danger");
-      if(flagFilter==="warnings")return l.flags.some(f=>f.t==="warning")&&!l.flags.some(f=>f.t==="danger");
-      if(flagFilter==="clean")return l.flags.length===0;
-      return true;
-    });
+  // ── Summary counts (always over full allLinks) ───────────────────────────
+  const activeLinks  = allLinks.filter(l => l.active);
+  const uniqueLmscs  = [...new Set(activeLinks.map(l => l.lmscCode))].length;
+  const uniqueLmdcs  = [...new Set(activeLinks.map(l => l.lmdcCode))].length;
 
-  // Stats scoped to the filtered set
-  const vInactive=visible.filter(l=>!l.active);
-  const vZero=visible.filter(l=>l.active&&l.capacity<=0);
-  const vMulti=visible.filter(l=>l.mappedScs.length>1);
-  const vClean=visible.filter(l=>l.flags.length===0);
+  const countInactive = allLinks.filter(l => !l.active).length;
+  const countZeroCap  = allLinks.filter(l => l.active && l.capacity <= 0).length;
+  const countMultiSc  = [...new Set(
+    allLinks.filter(l => l.mappedScs.length > 1).map(l => l.lmdcCode)
+  )].length;
+
+  // ── LMSC-scoped then warning-filtered visible list ───────────────────────
+  const lmscScoped = withFlags.filter(l =>
+    lmscFilter === "all" || l.lmscCode === lmscFilter
+  );
+
+  // Only show rows with at least one warning in the list
+  // Apply specific warning filter on top
+  const warnedRows = lmscScoped.filter(l => l.warns.length > 0);
+  const visible = warnedRows.filter(l => {
+    if (warnFilter === "inactive") return l.warns.some(w => w.key === "inactive");
+    if (warnFilter === "zerocap")  return l.warns.some(w => w.key === "zerocap");
+    if (warnFilter === "multisc")  return l.warns.some(w => w.key === "multisc");
+    return true; // "all" — show all warned rows
+  });
+
+  // ── For multisc rows: sort so same LMDC rows appear together ────────────
+  const sortedVisible = warnFilter === "multisc"
+    ? [...visible].sort((a, b) => a.lmdcCode.localeCompare(b.lmdcCode))
+    : visible;
+
+  // ── Warning filter tiles (3 only) ────────────────────────────────────────
+  const warnTiles = [
+    {
+      key:   "all",
+      label: "All Warnings",
+      sub:   "All flagged links",
+      count: warnedRows.length,
+      color: C.warning,
+      bg:    C.warningLight,
+    },
+    {
+      key:   "inactive",
+      label: "Link Active, Node Inactive",
+      sub:   "Count of links",
+      count: countInactive,
+      color: C.warning,
+      bg:    C.warningLight,
+    },
+    {
+      key:   "zerocap",
+      label: "Link Active, Zero Capacity",
+      sub:   "Count of links",
+      count: countZeroCap,
+      color: C.warning,
+      bg:    C.warningLight,
+    },
+    {
+      key:   "multisc",
+      label: "LMDC Mapped to >1 SC",
+      sub:   "Count of LMDCs",
+      count: countMultiSc,
+      color: C.warning,
+      bg:    C.warningLight,
+    },
+  ];
+
+  // ── CSV download ─────────────────────────────────────────────────────────
+  const downloadCSV = () => {
+    const headers = ["LMSC Code","LMSC Name","LMDC Code","LMDC Name","Zone","Capacity","Link Status","Mapped SCs","Warnings"];
+    const rows = sortedVisible.map(l => [
+      l.lmscCode,
+      l.lmscName,
+      l.lmdcCode,
+      l.lmdcName,
+      l.zone,
+      l.capacity,
+      l.active ? "Active" : "Inactive",
+      l.mappedScs.join("; "),
+      l.warns.map(w => w.m).join("; "),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("
+");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
+    a.download = `node_warnings_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  };
 
   return (
     <div>
+      {/* ── Step nav ── */}
       <div style={{display:"flex",gap:0,marginBottom:20,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
         {[{num:1,label:"AutoDML Node View"},{num:2,label:"Node Additions & Closures"},{num:3,label:"Node Migrations"}].map((s,i)=>(
-          <button key={s.num} onClick={()=>setStep(s.num)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px",background:step===s.num?"#2d6af6":"#fff",borderRight:i<2?`1px solid ${C.border}`:"none",cursor:"pointer",border:"none"}}>
+          <button key={s.num} onClick={()=>setStep(s.num)}
+            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px",
+              background:step===s.num?"#2d6af6":"#fff",
+              borderRight:i<2?`1px solid ${C.border}`:"none",
+              cursor:"pointer",border:"none"}}>
             <span style={{fontSize:11,fontWeight:700,color:step===s.num?"#fff":C.muted,textAlign:"center"}}>{s.num}. {s.label}</span>
           </button>
         ))}
       </div>
-      {step===1&&<div>
-        {/* ── Filter bar ── */}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,padding:"10px 14px",background:"#f8fafc",border:`1px solid ${C.border}`,borderRadius:10,flexWrap:"wrap"}}>
-          {/* LMSC filter */}
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4}}>LMSC</span>
-            <select value={lmscFilter} onChange={e=>setLmscFilter(e.target.value)}
-              style={{padding:"5px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,background:"#fff",outline:"none",fontWeight:lmscFilter!=="all"?700:400,color:lmscFilter!=="all"?C.primary:"#374151"}}>
-              <option value="all">All LMSCs</option>
-              {LMSC_DATA.map(sc=><option key={sc.lmscCode} value={sc.lmscCode}>{sc.lmscCode} — {sc.lmscName}</option>)}
-            </select>
-          </div>
-          <div style={{width:1,height:20,background:C.border}}/>
-          {/* Flag filter */}
-          <div style={{display:"flex",alignItems:"center",gap:6}}>
-            <span style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4}}>Show</span>
-            {[["all","All nodes"],["errors","Errors only"],["warnings","Warnings only"],["clean","Clean only"]].map(([v,label])=>(
-              <button key={v} onClick={()=>setFlagFilter(v)}
-                style={{padding:"4px 11px",fontSize:11,fontWeight:600,borderRadius:99,border:`1.5px solid ${flagFilter===v?(v==="errors"?C.danger:v==="warnings"?C.warning:v==="clean"?C.accent:C.primary):C.border}`,background:flagFilter===v?(v==="errors"?C.dangerLight:v==="warnings"?C.warningLight:v==="clean"?C.accentLight:C.primaryLight):"#fff",color:flagFilter===v?(v==="errors"?C.danger:v==="warnings"?"#92400e":v==="clean"?"#065f46":C.primary):C.muted,cursor:"pointer"}}>
-                {label}
-              </button>
-            ))}
-          </div>
-          {(lmscFilter!=="all"||flagFilter!=="all")&&<button onClick={()=>{setLmscFilter("all");setFlagFilter("all");}} style={{marginLeft:"auto",padding:"4px 10px",fontSize:11,fontWeight:600,borderRadius:99,border:`1px solid ${C.border}`,background:"#fff",color:C.muted,cursor:"pointer"}}>Clear filters ✕</button>}
-          <span style={{fontSize:11,color:C.muted,marginLeft:"auto"}}>{visible.length} of {allLinks.length} nodes</span>
-        </div>
 
-        {/* ── Stats strip — neutral when zero, colour only when actionable ── */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",gap:8,marginBottom:16}}>
+      {step===1&&<div>
+
+        {/* ── Top summary strip: active links / LMSCs / LMDCs ── */}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
           {[
-            ["Showing",   visible.length,  false],
-            ["LMSCs",     lmscFilter==="all"?LMSC_DATA.length:1, false],
-            ["Clean",     vClean.length,   false],
-            ["Inactive",  vInactive.length, vInactive.length>0?"danger":false],
-            ["Zero Cap",  vZero.length,    vZero.length>0?"warning":false],
-            ["Multi-SC",  vMulti.length,   vMulti.length>0?"warning":false],
-          ].map(([l,v,flag])=>(
-            <div key={l} style={{padding:"10px 12px",background:flag==="danger"?"#fef2f2":flag==="warning"?"#fffbeb":"#f9fafb",borderRadius:6,border:`1px solid ${C.border}`}}>
-              <div style={{fontSize:16,fontWeight:700,color:flag==="danger"?C.danger:flag==="warning"?C.warning:"#374151"}}>{v}</div>
-              <div style={{fontSize:10,color:C.muted,marginTop:2,fontWeight:500,textTransform:"uppercase",letterSpacing:.4}}>{l}</div>
+            ["Active LMSC–LMDC Links", activeLinks.length, "Total active links in network"],
+            ["Active LMSCs",           uniqueLmscs,         "Unique sort centres"],
+            ["Active LMDCs",           uniqueLmdcs,         "Unique delivery centres"],
+          ].map(([label, count, sub]) => (
+            <div key={label} style={{padding:"14px 18px",background:"#fff",border:`1px solid ${C.border}`,borderRadius:10}}>
+              <div style={{fontSize:26,fontWeight:800,color:"#1a2233",lineHeight:1,marginBottom:4}}>{count}</div>
+              <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:2}}>{label}</div>
+              <div style={{fontSize:11,color:C.muted}}>{sub}</div>
             </div>
           ))}
         </div>
 
-        {/* ── Node table ── */}
-        {visible.length===0
-          ? <div style={{padding:"32px 24px",textAlign:"center",color:C.muted,borderRadius:8,border:`1px dashed ${C.border}`}}>
-              <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>No nodes match the current filters</div>
-              <div style={{fontSize:12}}>Try a different LMSC or flag category.</div>
+        {/* ── Warning tiles — act as filters ── */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:10}}>
+            ⚠ Validation Warnings — click to filter list below
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+            {warnTiles.map(t => {
+              const isActive = warnFilter === t.key;
+              return (
+                <button key={t.key} onClick={()=>setWarnFilter(isActive && t.key !== "all" ? "all" : t.key)}
+                  style={{
+                    padding:"12px 14px",borderRadius:8,textAlign:"left",cursor:"pointer",
+                    border:`2px solid ${isActive ? t.color : t.count > 0 ? t.color+"50" : C.border}`,
+                    background: isActive ? t.bg : "#fff",
+                    transition:"all .15s",position:"relative",
+                  }}>
+                  {isActive && <div style={{position:"absolute",top:8,right:8,width:7,height:7,borderRadius:"50%",background:t.color}}/>}
+                  <div style={{fontSize:24,fontWeight:800,color: t.count > 0 ? t.color : "#9ca3af",lineHeight:1,marginBottom:4}}>
+                    {t.count}
+                  </div>
+                  <div style={{fontSize:11,fontWeight:700,color: isActive ? t.color : t.count > 0 ? "#374151" : C.muted,lineHeight:1.3,marginBottom:2}}>
+                    {t.label}
+                  </div>
+                  <div style={{fontSize:10,color:C.muted}}>{t.sub}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── Toolbar: LMSC filter + count + CSV download ── */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,padding:"9px 14px",
+          background:"#f8fafc",border:`1px solid ${C.border}`,borderRadius:8,flexWrap:"wrap"}}>
+          <span style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4}}>LMSC</span>
+          <select value={lmscFilter} onChange={e=>setLmscFilter(e.target.value)}
+            style={{padding:"5px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,background:"#fff",outline:"none",
+              fontWeight:lmscFilter!=="all"?700:400,color:lmscFilter!=="all"?C.primary:"#374151"}}>
+            <option value="all">All LMSCs</option>
+            {LMSC_DATA.map(sc=>(
+              <option key={sc.lmscCode} value={sc.lmscCode}>{sc.lmscCode} — {sc.lmscName}</option>
+            ))}
+          </select>
+
+          {(lmscFilter !== "all" || warnFilter !== "all") && (
+            <button onClick={()=>{setLmscFilter("all");setWarnFilter("all");}}
+              style={{padding:"4px 10px",fontSize:11,fontWeight:600,borderRadius:99,
+                border:`1px solid ${C.border}`,background:"#fff",color:C.muted,cursor:"pointer"}}>
+              Clear filters ✕
+            </button>
+          )}
+
+          <span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>
+            <b style={{color:"#1a2233"}}>{sortedVisible.length}</b> warning row{sortedVisible.length!==1?"s":""} shown
+            {warnFilter !== "all" && (
+              <span style={{marginLeft:6,padding:"1px 8px",borderRadius:99,fontSize:10,fontWeight:700,
+                background:C.warningLight,color:"#92400e"}}>
+                {warnTiles.find(t=>t.key===warnFilter)?.label}
+              </span>
+            )}
+          </span>
+
+          {/* CSV download */}
+          <button onClick={downloadCSV} disabled={sortedVisible.length===0}
+            style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",fontSize:11,fontWeight:600,
+              borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",color:C.muted,
+              cursor:sortedVisible.length===0?"not-allowed":"pointer",opacity:sortedVisible.length===0?.5:1}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Download CSV
+          </button>
+        </div>
+
+        {/* ── Warning rows table ── */}
+        {sortedVisible.length === 0
+          ? <div style={{padding:"32px 24px",textAlign:"center",color:C.muted,borderRadius:8,border:`1px dashed ${C.border}`,background:"#fafafa"}}>
+              <div style={{fontSize:28,marginBottom:8}}>✅</div>
+              <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>
+                {warnFilter==="all" ? "No validation warnings found" : `No warnings of type "${warnTiles.find(t=>t.key===warnFilter)?.label}"`}
+              </div>
+              <div style={{fontSize:12}}>
+                {warnFilter!=="all" ? "Try a different filter or clear to see all." : "All active links are clean."}
+              </div>
             </div>
           : <div style={{borderRadius:8,border:`1px solid ${C.border}`,overflow:"hidden"}}>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
-                <thead><tr style={{background:"#f9fafb"}}>{["LMSC","LMDC Code","LMDC Name","Zone","Capacity","Status","Flags"].map((h,i)=><th key={i} style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-                <tbody>{visible.map((l,i)=>{
-                  const hasErr=l.flags.some(f=>f.t==="danger");
-                  const hasWarn=!hasErr&&l.flags.length>0;
-                  return (
-                    <tr key={i} style={{background:"#fff", boxShadow: hasErr?`inset 3px 0 0 ${C.danger}`:hasWarn?`inset 3px 0 0 ${C.warning}`:"none"}}>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11,fontWeight:600}}>{l.lmscCode}</td>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11}}>{l.lmdcCode}</td>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:12}}>{l.lmdcName}</td>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:"#374151"}}>{l.zone}</td>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right"}}>{l.capacity.toLocaleString()}</td>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}>
-                        {l.active
-                          ? <span style={{fontSize:11,color:"#374151"}}>Active</span>
-                          : <span style={{fontSize:11,color:C.danger,fontWeight:500}}>Inactive</span>}
-                      </td>
-                      <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>
-                        {l.flags.length===0
-                          ? <span style={{color:"#d1d5db"}}>—</span>
-                          : <span style={{color:hasErr?C.danger:"#b45309",fontWeight:500}}>{l.flags.map(f=>f.m).join(", ")}</span>}
-                      </td>
-                    </tr>
-                  );
-                })}</tbody>
+                <thead>
+                  <tr style={{background:"#f9fafb"}}>
+                    {["LMSC","LMDC Code","LMDC Name","Zone","Capacity","Link Status","Mapped SCs","Warnings"].map((h,i)=>(
+                      <th key={i} style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,
+                        fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",
+                        letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedVisible.map((l, i) => {
+                    const isMultiSc = l.warns.some(w => w.key === "multisc");
+                    // For multisc view: detect if next row has same lmdcCode → group visual
+                    const nextL = sortedVisible[i + 1];
+                    const isGrouped = isMultiSc && nextL && nextL.lmdcCode === l.lmdcCode;
+                    const isLastInGroup = isMultiSc && sortedVisible[i - 1] && sortedVisible[i - 1].lmdcCode === l.lmdcCode;
+
+                    return (
+                      <tr key={i} style={{
+                        background: isMultiSc ? "#fff8ed" : "#fffdf5",
+                        boxShadow: `inset 3px 0 0 ${C.warning}`,
+                        borderBottom: isGrouped ? `1px dashed ${C.warning}40` : `1px solid ${C.border}`,
+                      }}>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontFamily:"monospace",fontSize:11,fontWeight:600}}>
+                          {l.lmscCode}
+                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontFamily:"monospace",fontSize:11,fontWeight: isMultiSc?700:400}}>
+                          {l.lmdcCode}
+                          {isLastInGroup && (
+                            <span style={{marginLeft:6,padding:"1px 6px",borderRadius:99,fontSize:9,fontWeight:700,
+                              background:C.warningLight,color:"#92400e"}}>grouped</span>
+                          )}
+                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontSize:12}}>{l.lmdcName}</td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontSize:11,color:"#374151"}}>{l.zone}</td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontSize:12,textAlign:"right",
+                          color:l.capacity<=0?C.warning:"#374151",fontWeight:l.capacity<=0?700:400}}>
+                          {l.capacity.toLocaleString()}
+                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:"none"}}>
+                          {l.active
+                            ? <span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Active</span>
+                            : <span style={{fontSize:11,color:C.warning,fontWeight:600}}>Inactive</span>}
+                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontSize:11,color:C.muted}}>
+                          {l.mappedScs.length > 1
+                            ? <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                                {l.mappedScs.map((sc,si)=>(
+                                  <span key={si} style={{fontFamily:"monospace",fontSize:10,
+                                    fontWeight: sc===l.lmscCode?700:400,
+                                    color: sc===l.lmscCode?C.primary:C.muted}}>{sc}</span>
+                                ))}
+                              </div>
+                            : <span style={{fontFamily:"monospace",fontSize:10}}>{l.mappedScs[0]}</span>}
+                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:"none"}}>
+                          <div style={{display:"flex",flexDirection:"column",gap:3}}>
+                            {l.warns.map((w,wi)=>(
+                              <span key={wi} style={{display:"inline-flex",alignItems:"center",gap:4,
+                                padding:"1px 8px",borderRadius:99,fontSize:10,fontWeight:700,
+                                background:C.warningLight,color:"#92400e",whiteSpace:"nowrap"}}>
+                                ⚠ {w.m}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
               </table>
             </div>}
 
@@ -611,6 +1059,7 @@ function NodeInputs() {
           <Btn onClick={()=>setStep(2)}>Confirm & Proceed </Btn>
         </div>
       </div>}
+
       {step===2&&<div>
         <UploadCard label="Node Additions & Closures" desc='Upload with Node Flag = "Addition" or "Closure".' cols={["LMSC Code","LMDC Code *","Node Flag *","LMDC Latitude *","LMDC Longitude *"]}/>
         <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
@@ -618,6 +1067,7 @@ function NodeInputs() {
           <Btn onClick={()=>setStep(3)}>Next </Btn>
         </div>
       </div>}
+
       {step===3&&<div>
         <UploadCard label="Node Migrations" desc="Upload planned SC migrations. Codes must match AutoDML master." cols={["LMSC Code *","LMDC Code *"]}/>
         <div style={{display:"flex",justifyContent:"flex-start",marginTop:8}}>
@@ -1135,6 +1585,74 @@ function DesignCreation({ sub, setPage, addDesign }) {
 const VEHICLE_TYPES = ["Tata Ace","Bolero","14ft","17ft","19ft","22ft","24ft SXL","32ft MXL","Trailer"];
 const TP_LIMITS = {"Tata Ace":8,"Bolero":10,"14ft":6,"17ft":5,"19ft":4,"22ft":3,"24ft SXL":2,"32ft MXL":2,"Trailer":1};
 const LMDC_LANDING_FILES = ["LMDC Landing (Apr 2026)","LMDC Landing (Mar 2026)","LMDC Landing (Q1 2026)"];
+
+// ─── LMDC Landing schema (from template: _Template__LMDC_Landing.xlsx) ────
+const LMDC_LANDING_SCHEMA = {
+  columns: [
+    {
+      name: "LMDC Code",
+      key:  "lmdc code",
+      mandatory: true,
+      format: "alphanumeric",
+      rule: v => {
+        if (!v || !v.trim()) return "LMDC Code is mandatory";
+        if (!/^[a-zA-Z0-9_-]+$/.test(v.trim())) return "LMDC Code must be alphanumeric";
+        if (v.trim().length < 3 || v.trim().length > 30) return "LMDC Code must be between 3 and 30 characters";
+        return null;
+      },
+    },
+    {
+      name: "Planned Volume",
+      key:  "planned volume",
+      mandatory: true,
+      format: "number",
+      rule: v => {
+        if (v === undefined || v === null || v === "") return "Planned Volume is mandatory";
+        if (isNaN(Number(v))) return "Planned Volume must be a number";
+        if (Number(v) <= 0) return "Planned Volume cannot be ≤ 0";
+        return null;
+      },
+    },
+  ],
+  downloadTemplate: () => {
+    const rows = [
+      ["Mandatory/Optional:", "Mandatory",   "Mandatory"],
+      ["Input Format:",       "alphanumeric","number"],
+      ["Validation Rule",     "3-30 characters, alphanumeric", "Cannot be <=0"],
+      ["Column Name:",        "LMDC Code",   "Planned Volume"],
+      // example data row
+      ["",                   "LMDC-BLR-001", "1200"],
+    ];
+    const csv = rows.map(r => r.join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    a.download = "_Template__LMDC_Landing.csv";
+    a.click();
+  },
+  validate: (rows) => {
+    const errors = [], warnings = [];
+    const schema = LMDC_LANDING_SCHEMA.columns;
+    const seenCodes = {};
+    rows.forEach((row, i) => {
+      const rowNum = i + 2; // +2 because row 1 is header
+      schema.forEach(col => {
+        const val = row[col.key];
+        const msg = col.rule(val);
+        if (msg) {
+          if (col.mandatory) errors.push({ rowNum, field: col.name, msg });
+          else               warnings.push({ rowNum, field: col.name, msg });
+        }
+      });
+      // Duplicate LMDC Code check
+      const code = (row["lmdc code"] || "").trim().toLowerCase();
+      if (code) {
+        if (seenCodes[code]) errors.push({ rowNum, field: "LMDC Code", msg: `Duplicate LMDC Code: ${row["lmdc code"]}` });
+        seenCodes[code] = true;
+      }
+    });
+    return { errors, warnings };
+  },
+};
 
 function RLHPlanning({ setPage, addDesign }) {
   const [step, setStep]               = useState(1);
@@ -1806,7 +2324,7 @@ function PocModal({ open, onClose, scId, onPush, hasWarnings }) {
   );
 }
 
-// ─── PlanCard metrics sub-component (extracted from IIFE — Rules of Hooks) ──
+// ─── PlanCard metrics sub-component ────────────────────────────────────────
 function PlanCardMetrics({ coveragePct, m, vehicleStr }) {
   const [showAll, setShowAll] = useState(false);
   const headline = [
@@ -1823,7 +2341,7 @@ function PlanCardMetrics({ coveragePct, m, vehicleStr }) {
   return (
     <div style={{borderBottom:`1px solid ${C.border}`}}>
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr) auto",borderBottom:showAll?`1px solid ${C.border}`:"none"}}>
-        {headline.map(([label,value,col],i)=>(
+        {headline.map(([label,value,col])=>(
           <div key={label} style={{padding:"10px 14px",borderRight:`1px solid ${C.border}`}}>
             <div style={{fontSize:15,fontWeight:700,color:col}}>{value}</div>
             <div style={{fontSize:10,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
@@ -2105,18 +2623,14 @@ function DesignReview({ designs, setDesigns, setAlignments, setPage, setMapPlanI
   );
 }
 
-// ─── OpsLead Simulate sub-panels (extracted from IIFE — Rules of Hooks) ──
+// ─── OpsLead Simulate sub-panels ───────────────────────────────────────────
 function OpsLeadSimPanelOrig({ rows }) {
   const [f, setF] = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
   return <><MapFilterBar rows={rows} filters={f} setFilters={setF}/><RouteMapSVG rows={rows} filters={f}/></>;
 }
-
 function OpsLeadSimPanelFb({ rows, planId, getRow }) {
   const [f, setF] = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
-  const fbRows = rows.map(r => {
-    const fb = getRow(planId, r.rowId);
-    return { ...r, routeDistanceKm: fb.distance ? +fb.distance : r.routeDistanceKm };
-  });
+  const fbRows = rows.map(r => { const fb = getRow(planId, r.rowId); return { ...r, routeDistanceKm: fb.distance ? +fb.distance : r.routeDistanceKm }; });
   return <><MapFilterBar rows={fbRows} filters={f} setFilters={setF}/><RouteMapSVG rows={fbRows} filters={f}/></>;
 }
 
