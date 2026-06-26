@@ -856,8 +856,7 @@ function NodeInputs() {
       l.mappedScs.join("; "),
       l.warns.map(w => w.m).join("; "),
     ]);
-    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("
-");
+    const csv = [headers, ...rows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
     a.download = `node_warnings_${new Date().toISOString().slice(0,10)}.csv`;
