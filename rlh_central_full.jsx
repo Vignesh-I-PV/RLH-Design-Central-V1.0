@@ -461,7 +461,7 @@ function UploadCard({ label, desc, cols=[], onSubmit }) {
 }
 
 // ─── Validated CSV Upload Card (module-level, compact inline row) ─────────
-function CsvUploadCard({ label, desc, cols, onLoad, onSubmit }) {
+function CsvUploadCard({ label, desc, cols, onLoad, onSubmit, templateDownload }) {
   const [file, setFile]    = useState(null);
   const [status,setStatus] = useState("idle");
   const [errors,setErrors] = useState([]);
@@ -500,11 +500,12 @@ function CsvUploadCard({ label, desc, cols, onLoad, onSubmit }) {
         {/* Actions */}
         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
           {/* Template download icon */}
-          <button title="Download template CSV" onClick={e=>{e.stopPropagation();}}
-            style={{display:"flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",flexShrink:0}}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <button title="Download template CSV" onClick={e=>{e.stopPropagation();if(templateDownload)templateDownload();}}
+            style={{display:"flex",alignItems:"center",gap:4,padding:"3px 9px",borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",flexShrink:0,fontSize:11,fontWeight:600,color:C.muted,whiteSpace:"nowrap"}}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
+            Template
           </button>
           {status==="submitted"
             ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={()=>{setFile(null);setStatus("idle");setErrors([]);}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
@@ -528,12 +529,15 @@ function CsvUploadCard({ label, desc, cols, onLoad, onSubmit }) {
 }
 
 // ─── LMDC Landing Upload Card (schema-driven, template-downloadable) ────────
-function LmdcLandingUploadCard({ onSubmit }) {
-  const [file,   setFile]   = useState(null);
-  const [status, setStatus] = useState("idle"); // idle|ready|error|submitted
-  const [errors, setErrors] = useState([]);
+// ─── Generic volume upload card (used for all 4 volume input cards) ──────────
+// Props: schema (from VOLUME_SCHEMAS), label, desc, onSubmit
+function VolumeUploadCard({ schema, label, desc, onSubmit }) {
+  const [file,     setFile]     = useState(null);
+  const [status,   setStatus]   = useState("idle");
+  const [errors,   setErrors]   = useState([]);
   const [warnings, setWarnings] = useState([]);
-  const [preview, setPreview]   = useState(null); // [{lmdcCode, plannedVolume}]
+  const [preview,  setPreview]  = useState(null); // first 5 rows [{code, volume}]
+  const [totalRows, setTotalRows] = useState(0);
   const ref = useRef(null);
 
   const handle = ev => {
@@ -542,20 +546,21 @@ function LmdcLandingUploadCard({ onSubmit }) {
     const reader = new FileReader();
     reader.onload = e => {
       const { headers, rows } = parseCSV(e.target.result);
+      setTotalRows(rows.length);
       // Check mandatory columns present
-      const missingCols = LMDC_LANDING_SCHEMA.columns
+      const missingCols = schema.columns
         .filter(c => c.mandatory)
         .filter(c => !headers.includes(c.key));
       if (missingCols.length) {
-        setErrors([{ rowNum: null, field: "__file", msg: `Missing mandatory columns: ${missingCols.map(c=>c.name).join(", ")}` }]);
+        setErrors([{ rowNum: null, field: "__file", msg: "Missing mandatory columns: " + missingCols.map(c=>c.name).join(", ") }]);
         setStatus("error"); return;
       }
-      const { errors: errs, warnings: warns } = LMDC_LANDING_SCHEMA.validate(rows);
+      const { errors: errs, warnings: warns } = schema.validate(rows);
       setErrors(errs);
       setWarnings(warns);
       setPreview(rows.slice(0, 5).map(r => ({
-        lmdcCode: r["lmdc code"] || "—",
-        plannedVolume: r["planned volume"] || "—",
+        code:   r[schema.codeKey]   || "—",
+        volume: r["planned volume"] || "—",
       })));
       setStatus(errs.length ? "error" : "ready");
     };
@@ -563,7 +568,17 @@ function LmdcLandingUploadCard({ onSubmit }) {
     ev.target.value = "";
   };
 
-  const reset = () => { setFile(null); setStatus("idle"); setErrors([]); setWarnings([]); setPreview(null); };
+  const reset = () => { setFile(null); setStatus("idle"); setErrors([]); setWarnings([]); setPreview(null); setTotalRows(0); };
+
+  const handleSubmit = () => {
+    setStatus("submitted");
+    if (onSubmit) onSubmit({
+      fileName:  file,
+      rowCount:  totalRows,
+      uploaderId: MOCK_UPLOADER_ID,
+      timestamp: new Date().toLocaleString("en-IN", { day:"2-digit", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit" }),
+    });
+  };
 
   const borderColor = status === "submitted" ? "#16a34a"
     : status === "error"  ? C.danger
@@ -573,60 +588,75 @@ function LmdcLandingUploadCard({ onSubmit }) {
   return (
     <div style={{marginBottom:8}}>
       <div style={{border:`1px solid ${borderColor}`,borderRadius:8,overflow:"hidden",background:"#fff"}}>
-        {/* Main row */}
+
+        {/* ── Main header row ── */}
         <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
           <input ref={ref} type="file" accept=".csv" style={{display:"none"}} onChange={handle}/>
+
           {/* CSV icon */}
           <div onClick={()=>ref.current?.click()} title="Upload CSV"
-            style={{width:32,height:32,background:"#f0fdf4",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",border:`1px solid ${status==="submitted"?"#16a34a":C.border}`,flexShrink:0}}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={status==="submitted"?"#16a34a":status==="error"?C.danger:"#6b7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10,9 9,9 8,9"/>
+            style={{width:32,height:32,background:"#f0fdf4",borderRadius:6,flexShrink:0,
+              display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
+              border:`1px solid ${status==="submitted"?"#16a34a":C.border}`}}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke={status==="submitted"?"#16a34a":status==="error"?C.danger:"#6b7280"}
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+              <line x1="16" y1="13" x2="8" y2="13"/>
+              <line x1="16" y1="17" x2="8" y2="17"/>
+              <polyline points="10,9 9,9 8,9"/>
             </svg>
           </div>
-          {/* Label */}
+
+          {/* Label + filename */}
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:12,fontWeight:600,color:"#1a2233"}}>LMDC Landing</div>
-            <div style={{fontSize:11,color:C.muted,marginTop:1}}>LMDC-level expected landing volumes · Used in RLH Planning as the volume file</div>
-            {file && <div style={{fontSize:11,color:status==="error"?C.danger:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{status==="error"?errors[0]?.msg:file}</div>}
+            <div style={{fontSize:12,fontWeight:600,color:"#1a2233"}}>{label}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:1}}>{desc}</div>
+            {file && (
+              <div style={{fontSize:11,color:status==="error"?C.danger:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                {status==="error" ? (errors[0]?.msg || file) : file}
+              </div>
+            )}
           </div>
+
           {/* Actions */}
           <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
             {/* Template download */}
-            <button title="Download template CSV" onClick={e=>{e.stopPropagation(); LMDC_LANDING_SCHEMA.downloadTemplate();}}
-              style={{display:"flex",alignItems:"center",gap:5,padding:"4px 10px",fontSize:11,fontWeight:600,borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",color:C.muted,whiteSpace:"nowrap"}}>
+            <button title="Download template CSV" onClick={e=>{e.stopPropagation(); schema.downloadTemplate();}}
+              style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",fontSize:11,fontWeight:600,
+                borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",color:C.muted,whiteSpace:"nowrap"}}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7,10 12,15 17,10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
               Template
             </button>
+
+            {/* State actions */}
             {status === "submitted"
-              ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span><button onClick={reset} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
+              ? <><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span>
+                  <button onClick={reset} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
               : status === "ready"
-                ? <><Btn size="sm" onClick={()=>{
-                    setStatus("submitted");
-                    if(onSubmit) onSubmit({
-                      fileName:file,
-                      rowCount: preview ? preview.length : 0,
-                      uploaderId:MOCK_UPLOADER_ID,
-                      timestamp:new Date().toLocaleString("en-IN",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}),
-                    });
-                  }}>Submit</Btn><button onClick={reset} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+                ? <><Btn size="sm" onClick={handleSubmit}>Submit</Btn>
+                    <button onClick={reset} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
                 : status === "error"
                   ? <button onClick={reset} style={{fontSize:11,color:C.danger,background:"none",border:"none",cursor:"pointer"}}>Clear ✕</button>
                   : <button onClick={()=>ref.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
           </div>
         </div>
 
-        {/* Schema info strip (always visible when idle) */}
+        {/* ── Schema info strip (idle only) ── */}
         {status === "idle" && (
-          <div style={{padding:"6px 14px 8px",background:"#f8fafc",borderTop:`1px solid ${C.border}`,display:"flex",gap:16,fontSize:11,color:C.muted}}>
-            <span><b style={{color:"#374151"}}>LMDC Code</b> · Mandatory · alphanumeric · 3–30 chars</span>
+          <div style={{padding:"6px 14px 8px",background:"#f8fafc",borderTop:`1px solid ${C.border}`,display:"flex",gap:16,flexWrap:"wrap",fontSize:11,color:C.muted}}>
+            <span><b style={{color:"#374151"}}>{schema.codeLabel}</b> · Mandatory · alphanumeric · 3–6 chars</span>
             <span style={{color:C.border}}>|</span>
             <span><b style={{color:"#374151"}}>Planned Volume</b> · Mandatory · number · must be &gt; 0</span>
           </div>
         )}
 
-        {/* Validation errors */}
+        {/* ── Errors ── */}
         {errors.length > 0 && status !== "submitted" && (
           <div style={{padding:"8px 14px",background:C.dangerLight,borderTop:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:C.danger,marginBottom:4}}>
@@ -635,14 +665,14 @@ function LmdcLandingUploadCard({ onSubmit }) {
             <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:80,overflowY:"auto"}}>
               {errors.map((e,i)=>(
                 <div key={i} style={{fontSize:11,color:"#7f1d1d"}}>
-                  {e.rowNum ? `Row ${e.rowNum} · ` : ""}<b>{e.field}</b>: {e.msg}
+                  {e.rowNum ? "Row " + e.rowNum + " · " : ""}<b>{e.field}</b>: {e.msg}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Warnings */}
+        {/* ── Warnings ── */}
         {warnings.length > 0 && status !== "submitted" && (
           <div style={{padding:"8px 14px",background:C.warningLight,borderTop:`1px solid ${C.border}`}}>
             <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:"#92400e",marginBottom:4}}>
@@ -654,16 +684,17 @@ function LmdcLandingUploadCard({ onSubmit }) {
           </div>
         )}
 
-        {/* Preview table */}
+        {/* ── Preview table (first 5 rows) ── */}
         {preview && status !== "submitted" && (
           <div style={{borderTop:`1px solid ${C.border}`,overflowX:"auto"}}>
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr style={{background:"#f8fafc"}}>
-                  {["LMDC Code","Planned Volume"].map((h,i)=>(
-                    <th key={i} style={{padding:"5px 12px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",borderBottom:`1px solid ${C.border}`}}>{h}</th>
+                  {[schema.codeLabel, "Planned Volume", "Status"].map((h,i)=>(
+                    <th key={i} style={{padding:"5px 12px",fontSize:10,fontWeight:700,color:C.muted,
+                      textTransform:"uppercase",letterSpacing:.4,textAlign:"left",
+                      borderBottom:`1px solid ${C.border}`}}>{h}</th>
                   ))}
-                  <th style={{padding:"5px 12px",fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",borderBottom:`1px solid ${C.border}`}}>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -672,8 +703,8 @@ function LmdcLandingUploadCard({ onSubmit }) {
                   const ok = rowErrors.length === 0;
                   return (
                     <tr key={i} style={{background:ok?"#fff":"#fff5f5"}}>
-                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`,fontFamily:"monospace"}}>{row.lmdcCode}</td>
-                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`}}>{row.plannedVolume}</td>
+                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`,fontFamily:"monospace"}}>{row.code}</td>
+                      <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`}}>{row.volume}</td>
                       <td style={{padding:"5px 12px",fontSize:11,borderBottom:`1px solid ${C.border}`}}>
                         {ok
                           ? <span style={{color:"#16a34a",fontWeight:500}}>✓ Valid</span>
@@ -684,14 +715,27 @@ function LmdcLandingUploadCard({ onSubmit }) {
                 })}
               </tbody>
             </table>
-            {preview.length < errors.filter(e=>e.rowNum).length && (
-              <div style={{padding:"4px 12px",fontSize:10,color:C.muted,background:"#f8fafc"}}>Showing first 5 rows · {errors.filter(e=>e.rowNum).length} total errors</div>
-            )}
+            <div style={{padding:"4px 12px",fontSize:10,color:C.muted,background:"#f8fafc",display:"flex",justifyContent:"space-between"}}>
+              <span>Showing first {preview.length} of {totalRows} rows</span>
+              {errors.filter(e=>e.rowNum).length > preview.length && (
+                <span style={{color:C.danger,fontWeight:600}}>{errors.filter(e=>e.rowNum).length} rows with errors</span>
+              )}
+            </div>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+// Thin backward-compat wrapper kept so LmdcLandingUploadCard references still work
+function LmdcLandingUploadCard({ onSubmit }) {
+  return <VolumeUploadCard
+    schema={VOLUME_SCHEMAS.lmdc}
+    label="LMDC Landing"
+    desc="LMDC-level expected landing volumes · Used in RLH Planning as the volume file"
+    onSubmit={onSubmit}
+  />;
 }
 
 // ─── Design Inputs ────────────────────────────────────────────────────────
@@ -719,19 +763,32 @@ function DesignInputs({ sub, setPage }) {
           <div style={{fontSize:12,color:C.muted}}>Mandatory columns are validated on upload. Download the template CSV for the exact column format.</div>
         </div>
 
-        <CsvUploadCard label="FM Hub Manifestation" desc="Planned shipment volumes per FM Hub." cols={["fm hub code *","planned volume *"]}
+        <VolumeUploadCard
+          schema={VOLUME_SCHEMAS.fmHub}
+          label="FM Hub Manifestation"
+          desc="Planned shipment volumes per FM Hub. FM Hub Code and Planned Volume are mandatory."
           onSubmit={e=>addHistory("FM Hub Manifestation",e)}/>
         <UploadHistory history={uploadHistory["FM Hub Manifestation"]}/>
 
-        <CsvUploadCard label="FMSC Manifestation" desc="Planned volumes per First-Mile Sort Centre." cols={["fmsc code *","planned volume *"]}
+        <VolumeUploadCard
+          schema={VOLUME_SCHEMAS.fmsc}
+          label="FMSC Manifestation"
+          desc="Planned volumes per First-Mile Sort Centre. FMSC Code and Planned Volume are mandatory."
           onSubmit={e=>addHistory("FMSC Manifestation",e)}/>
         <UploadHistory history={uploadHistory["FMSC Manifestation"]}/>
 
-        <CsvUploadCard label="LMSC Landing" desc="Expected volumes landing at each Last-Mile Sort Centre." cols={["lmsc code *","planned volume *"]}
+        <VolumeUploadCard
+          schema={VOLUME_SCHEMAS.lmsc}
+          label="LMSC Landing"
+          desc="Expected volumes landing at each Last-Mile Sort Centre. LMSC Code and Planned Volume are mandatory."
           onSubmit={e=>addHistory("LMSC Landing",e)}/>
         <UploadHistory history={uploadHistory["LMSC Landing"]}/>
 
-        <LmdcLandingUploadCard onSubmit={e=>addHistory("LMDC Landing",e)}/>
+        <VolumeUploadCard
+          schema={VOLUME_SCHEMAS.lmdc}
+          label="LMDC Landing"
+          desc="LMDC-level expected landing volumes · Used in RLH Planning as the volume file."
+          onSubmit={e=>addHistory("LMDC Landing",e)}/>
         <UploadHistory history={uploadHistory["LMDC Landing"]}/>
       </div>}
 
@@ -756,17 +813,118 @@ function DesignInputs({ sub, setPage }) {
 }
 
 function NodeInputs() {
-  const [step, setStep] = useState(1);
+  const [tab, setTab]               = useState("autodml");
   const [lmscFilter, setLmscFilter] = useState("all");
-  // warnFilter: "all" | "inactive" | "zerocap" | "multisc"
   const [warnFilter, setWarnFilter] = useState("all");
 
-  // ── Build full link list ─────────────────────────────────────────────────
-  const allLinks = LMSC_DATA.flatMap(sc =>
-    sc.dcs.map(dc => ({ ...dc, lmscCode: sc.lmscCode, lmscName: sc.lmscName, zone: sc.zone, lmscCap: sc.scCapacity }))
-  );
+  // ── Toaster ──────────────────────────────────────────────────────────────
+  const [toast, setToast] = useState(null);
+  const showToast = (msg, type="success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4500);
+  };
 
-  // ── Attach warning flags to every link ───────────────────────────────────
+  // ── Node changes state ────────────────────────────────────────────────────
+  const [uploadedNodes,  setUploadedNodes]  = useState([]);
+  const [changeFile,     setChangeFile]     = useState(null);
+  const [changeStatus,   setChangeStatus]   = useState("idle");
+  const [changeErrors,   setChangeErrors]   = useState([]);
+  const changeRef = useRef(null);
+
+  // ── AutoDML master lookup ─────────────────────────────────────────────────
+  const allLinks = LMSC_DATA.flatMap(sc =>
+    sc.dcs.map(dc => ({ ...dc, lmscCode:sc.lmscCode, lmscName:sc.lmscName, zone:sc.zone, lmscCap:sc.scCapacity }))
+  );
+  const autodmlCodes = new Set(allLinks.map(l => l.lmdcCode.trim().toLowerCase()));
+
+  // ── Schema (from _Template__Node_Additions__Closures___Migrations.xlsx) ───
+  // Columns: LMSC Code*, LMDC Code*, Node Flag* (Addition|Closure|Migration),
+  //          LMDC Latitude (mandatory for Addition), LMDC Longitude (mandatory for Addition)
+  const NODE_CHANGE_SCHEMA = {
+    templateDownload: () => {
+      const rows = [
+        ["Mandatory/Optional:", "Mandatory",    "Mandatory",    "Mandatory",                        "Conditional",                          "Conditional"],
+        ["Input Format:",       "alphanumeric", "alphanumeric", "Custom",                           "Number (-90 to +90)",                  "Number (-180 to +180)"],
+        ["Validation Rule",     "3-6 characters","3-6 characters","Addition / Closure / Migration", "Mandatory if Addition; Optional otherwise","Mandatory if Addition; Optional otherwise"],
+        ["Column Name:",        "LMSC Code",    "LMDC Code",    "Node Flag",                        "LMDC Latitude",                        "LMDC Longitude"],
+        ["",                    "LMSC-BLR-01",  "LMDC-BLR-010", "Addition",                        "12.9352",                              "77.6245"],
+        ["",                    "LMSC-HYD-01",  "LMDC-HYD-003", "Closure",                         "",                                     ""],
+        ["",                    "LMSC-DEL-01",  "LMDC-DEL-002", "Migration",                        "",                                     ""],
+      ];
+      const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
+      a.download = "_Template__Node_Additions_Closures_Migrations.csv";
+      a.click();
+    },
+    validate: (row) => {
+      const errors  = [];
+      const lmscCode = (row["lmsc code"]       || "").trim();
+      const lmdcCode = (row["lmdc code"]       || "").trim();
+      const nodeFlag = (row["node flag"]       || "").trim();
+      const lat      = (row["lmdc latitude"]   || "").trim();
+      const lng      = (row["lmdc longitude"]  || "").trim();
+      if (!lmscCode) errors.push("LMSC Code is mandatory");
+      if (!lmdcCode) errors.push("LMDC Code is mandatory");
+      if (!["Addition","Closure","Migration"].includes(nodeFlag))
+        errors.push("Node Flag must be Addition, Closure, or Migration");
+      if (nodeFlag === "Addition") {
+        if (!lat || isNaN(+lat) || +lat < -90  || +lat > 90)   errors.push("LMDC Latitude required for Addition (-90 to 90)");
+        if (!lng || isNaN(+lng) || +lng < -180 || +lng > 180)  errors.push("LMDC Longitude required for Addition (-180 to 180)");
+      }
+      if (lat && (isNaN(+lat) || +lat < -90  || +lat > 90))   errors.push("LMDC Latitude must be -90 to 90");
+      if (lng && (isNaN(+lng) || +lng < -180 || +lng > 180))  errors.push("LMDC Longitude must be -180 to 180");
+      return errors;
+    },
+  };
+
+  // ── Handle upload ─────────────────────────────────────────────────────────
+  const handleChangeFile = (ev) => {
+    const f = ev.target.files?.[0]; if (!f) return;
+    setChangeFile(f.name); setChangeErrors([]); setUploadedNodes([]);
+    const reader = new FileReader();
+    reader.onload = e => {
+      const { headers, rows } = parseCSV(e.target.result);
+      const required = ["lmsc code","lmdc code","node flag"];
+      const missing  = required.filter(c => !headers.includes(c));
+      if (missing.length) {
+        setChangeErrors([{ row:null, msgs:["Missing columns: " + missing.join(", ")] }]);
+        setChangeStatus("error"); return;
+      }
+      const rowErrors = [];
+      rows.forEach((row, i) => {
+        const msgs = NODE_CHANGE_SCHEMA.validate(row);
+        if (msgs.length) rowErrors.push({ row:i+2, msgs });
+      });
+      if (rowErrors.length) { setChangeErrors(rowErrors); setChangeStatus("error"); return; }
+
+      // Reject Additions that already exist in AutoDML master
+      const accepted = [], rejected = [];
+      rows.forEach(row => {
+        const code = (row["lmdc code"] || "").trim().toLowerCase();
+        const flag = (row["node flag"] || "").trim();
+        if (flag === "Addition" && autodmlCodes.has(code)) rejected.push(row);
+        else accepted.push(row);
+      });
+
+      setUploadedNodes(accepted);
+      setChangeStatus("ready");
+      if (rejected.length > 0) {
+        showToast(
+          rejected.length + " node" + (rejected.length !== 1 ? "s" : "") + " rejected as they are already part of AutoDML",
+          "warning"
+        );
+      }
+    };
+    reader.readAsText(f);
+    ev.target.value = "";
+  };
+
+  const resetChangeUpload = () => {
+    setChangeFile(null); setChangeStatus("idle"); setChangeErrors([]); setUploadedNodes([]);
+  };
+
+  // ── AutoDML warning logic ─────────────────────────────────────────────────
   const withFlags = allLinks.map(l => {
     const warns = [];
     if (!l.active)                   warns.push({ key:"inactive", m:"Link active, node inactive" });
@@ -775,83 +933,36 @@ function NodeInputs() {
     return { ...l, warns };
   });
 
-  // ── Summary counts (always over full allLinks) ───────────────────────────
   const activeLinks  = allLinks.filter(l => l.active);
   const uniqueLmscs  = [...new Set(activeLinks.map(l => l.lmscCode))].length;
   const uniqueLmdcs  = [...new Set(activeLinks.map(l => l.lmdcCode))].length;
-
   const countInactive = allLinks.filter(l => !l.active).length;
   const countZeroCap  = allLinks.filter(l => l.active && l.capacity <= 0).length;
-  const countMultiSc  = [...new Set(
-    allLinks.filter(l => l.mappedScs.length > 1).map(l => l.lmdcCode)
-  )].length;
+  const countMultiSc  = [...new Set(allLinks.filter(l => l.mappedScs.length > 1).map(l => l.lmdcCode))].length;
 
-  // ── LMSC-scoped then warning-filtered visible list ───────────────────────
-  const lmscScoped = withFlags.filter(l =>
-    lmscFilter === "all" || l.lmscCode === lmscFilter
-  );
-
-  // Only show rows with at least one warning in the list
-  // Apply specific warning filter on top
-  const warnedRows = lmscScoped.filter(l => l.warns.length > 0);
-  const visible = warnedRows.filter(l => {
+  const lmscScoped  = withFlags.filter(l => lmscFilter === "all" || l.lmscCode === lmscFilter);
+  const warnedRows  = lmscScoped.filter(l => l.warns.length > 0);
+  const visible     = warnedRows.filter(l => {
     if (warnFilter === "inactive") return l.warns.some(w => w.key === "inactive");
     if (warnFilter === "zerocap")  return l.warns.some(w => w.key === "zerocap");
     if (warnFilter === "multisc")  return l.warns.some(w => w.key === "multisc");
-    return true; // "all" — show all warned rows
+    return true;
   });
-
-  // ── For multisc rows: sort so same LMDC rows appear together ────────────
   const sortedVisible = warnFilter === "multisc"
-    ? [...visible].sort((a, b) => a.lmdcCode.localeCompare(b.lmdcCode))
+    ? [...visible].sort((a,b) => a.lmdcCode.localeCompare(b.lmdcCode))
     : visible;
 
-  // ── Warning filter tiles (3 only) ────────────────────────────────────────
   const warnTiles = [
-    {
-      key:   "all",
-      label: "All Warnings",
-      sub:   "All flagged links",
-      count: warnedRows.length,
-      color: C.warning,
-      bg:    C.warningLight,
-    },
-    {
-      key:   "inactive",
-      label: "Link Active, Node Inactive",
-      sub:   "Count of links",
-      count: countInactive,
-      color: C.warning,
-      bg:    C.warningLight,
-    },
-    {
-      key:   "zerocap",
-      label: "Link Active, Zero Capacity",
-      sub:   "Count of links",
-      count: countZeroCap,
-      color: C.warning,
-      bg:    C.warningLight,
-    },
-    {
-      key:   "multisc",
-      label: "LMDC Mapped to >1 SC",
-      sub:   "Count of LMDCs",
-      count: countMultiSc,
-      color: C.warning,
-      bg:    C.warningLight,
-    },
+    { key:"all",      label:"All Warnings",              sub:"All flagged links", count:warnedRows.length, color:C.warning, bg:C.warningLight },
+    { key:"inactive", label:"Link Active, Node Inactive", sub:"Count of links",   count:countInactive,     color:C.warning, bg:C.warningLight },
+    { key:"zerocap",  label:"Link Active, Zero Capacity", sub:"Count of links",   count:countZeroCap,      color:C.warning, bg:C.warningLight },
+    { key:"multisc",  label:"LMDC Mapped to >1 SC",       sub:"Count of LMDCs",  count:countMultiSc,      color:C.warning, bg:C.warningLight },
   ];
 
-  // ── CSV download ─────────────────────────────────────────────────────────
-  const downloadCSV = () => {
+  const downloadWarningsCSV = () => {
     const headers = ["LMSC Code","LMSC Name","LMDC Code","LMDC Name","Zone","Capacity","Link Status","Mapped SCs","Warnings"];
     const rows = sortedVisible.map(l => [
-      l.lmscCode,
-      l.lmscName,
-      l.lmdcCode,
-      l.lmdcName,
-      l.zone,
-      l.capacity,
+      l.lmscCode, l.lmscName, l.lmdcCode, l.lmdcName, l.zone, l.capacity,
       l.active ? "Active" : "Inactive",
       l.mappedScs.join("; "),
       l.warns.map(w => w.m).join("; "),
@@ -859,34 +970,62 @@ function NodeInputs() {
     const csv = [headers, ...rows].map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type:"text/csv" }));
-    a.download = `node_warnings_${new Date().toISOString().slice(0,10)}.csv`;
+    a.download = "node_warnings_" + new Date().toISOString().slice(0,10) + ".csv";
     a.click();
   };
 
+  // ── Node flag badge styles ────────────────────────────────────────────────
+  const flagStyle = flag => ({
+    Addition:  { bg:"#dcfce7", color:"#16a34a" },
+    Closure:   { bg:C.dangerLight, color:C.danger },
+    Migration: { bg:"#e0e7ff", color:"#3730a3" },
+  }[flag] || { bg:"#f3f4f6", color:C.muted });
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div>
-      {/* ── Step nav ── */}
+    <div style={{position:"relative"}}>
+
+      {/* Toaster */}
+      {toast && (
+        <div style={{position:"fixed",top:20,right:24,zIndex:9999,
+          padding:"12px 18px",borderRadius:10,fontSize:12,fontWeight:600,
+          background:toast.type==="warning"?"#92400e":"#065f46",
+          color:"#fff",boxShadow:"0 4px 20px rgba(0,0,0,.25)",
+          display:"flex",alignItems:"center",gap:10,maxWidth:440}}>
+          <span style={{fontSize:16}}>{toast.type==="warning"?"⚠️":"✅"}</span>
+          <span style={{flex:1}}>{toast.msg}</span>
+          <button onClick={()=>setToast(null)}
+            style={{background:"none",border:"none",color:"#fff",cursor:"pointer",fontSize:18,lineHeight:1}}>✕</button>
+        </div>
+      )}
+
+      {/* Tab switcher */}
       <div style={{display:"flex",gap:0,marginBottom:20,background:"#fff",border:`1px solid ${C.border}`,borderRadius:10,overflow:"hidden"}}>
-        {[{num:1,label:"AutoDML Node View"},{num:2,label:"Node Additions & Closures"},{num:3,label:"Node Migrations"}].map((s,i)=>(
-          <button key={s.num} onClick={()=>setStep(s.num)}
-            style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4,padding:"12px 8px",
-              background:step===s.num?"#2d6af6":"#fff",
-              borderRight:i<2?`1px solid ${C.border}`:"none",
-              cursor:"pointer",border:"none"}}>
-            <span style={{fontSize:11,fontWeight:700,color:step===s.num?"#fff":C.muted,textAlign:"center"}}>{s.num}. {s.label}</span>
+        {[
+          {key:"autodml", label:"1. AutoDML Node View"},
+          {key:"changes", label:"2. Node Additions, Closures & Migrations"},
+        ].map((t,i)=>(
+          <button key={t.key} onClick={()=>setTab(t.key)}
+            style={{flex:1,padding:"12px 16px",fontSize:12,fontWeight:700,
+              background:tab===t.key?"#2d6af6":"#fff",
+              color:tab===t.key?"#fff":C.muted,
+              borderRight:i===0?`1px solid ${C.border}`:"none",
+              border:"none",cursor:"pointer"}}>
+            {t.label}
           </button>
         ))}
       </div>
 
-      {step===1&&<div>
+      {/* ═══════════════ TAB 1: AutoDML Node View ═══════════════ */}
+      {tab==="autodml"&&<div>
 
-        {/* ── Top summary strip: active links / LMSCs / LMDCs ── */}
+        {/* Summary strip */}
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:20}}>
           {[
-            ["Active LMSC–LMDC Links", activeLinks.length, "Total active links in network"],
-            ["Active LMSCs",           uniqueLmscs,         "Unique sort centres"],
-            ["Active LMDCs",           uniqueLmdcs,         "Unique delivery centres"],
-          ].map(([label, count, sub]) => (
+            ["Active LMSC\u2013LMDC Links", activeLinks.length, "Total active links in network"],
+            ["Active LMSCs",                uniqueLmscs,         "Unique sort centres"],
+            ["Active LMDCs",                uniqueLmdcs,         "Unique delivery centres"],
+          ].map(([label,count,sub])=>(
             <div key={label} style={{padding:"14px 18px",background:"#fff",border:`1px solid ${C.border}`,borderRadius:10}}>
               <div style={{fontSize:26,fontWeight:800,color:"#1a2233",lineHeight:1,marginBottom:4}}>{count}</div>
               <div style={{fontSize:12,fontWeight:700,color:"#374151",marginBottom:2}}>{label}</div>
@@ -895,29 +1034,22 @@ function NodeInputs() {
           ))}
         </div>
 
-        {/* ── Warning tiles — act as filters ── */}
+        {/* Warning tiles */}
         <div style={{marginBottom:14}}>
           <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:10}}>
-            ⚠ Validation Warnings — click to filter list below
+            ⚠ Validation Warnings — click to filter
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
-            {warnTiles.map(t => {
+            {warnTiles.map(t=>{
               const isActive = warnFilter === t.key;
               return (
-                <button key={t.key} onClick={()=>setWarnFilter(isActive && t.key !== "all" ? "all" : t.key)}
-                  style={{
-                    padding:"12px 14px",borderRadius:8,textAlign:"left",cursor:"pointer",
-                    border:`2px solid ${isActive ? t.color : t.count > 0 ? t.color+"50" : C.border}`,
-                    background: isActive ? t.bg : "#fff",
-                    transition:"all .15s",position:"relative",
-                  }}>
-                  {isActive && <div style={{position:"absolute",top:8,right:8,width:7,height:7,borderRadius:"50%",background:t.color}}/>}
-                  <div style={{fontSize:24,fontWeight:800,color: t.count > 0 ? t.color : "#9ca3af",lineHeight:1,marginBottom:4}}>
-                    {t.count}
-                  </div>
-                  <div style={{fontSize:11,fontWeight:700,color: isActive ? t.color : t.count > 0 ? "#374151" : C.muted,lineHeight:1.3,marginBottom:2}}>
-                    {t.label}
-                  </div>
+                <button key={t.key} onClick={()=>setWarnFilter(isActive && t.key!=="all" ? "all" : t.key)}
+                  style={{padding:"12px 14px",borderRadius:8,textAlign:"left",cursor:"pointer",
+                    border:`2px solid ${isActive?t.color:t.count>0?t.color+"50":C.border}`,
+                    background:isActive?t.bg:"#fff",transition:"all .15s",position:"relative"}}>
+                  {isActive&&<div style={{position:"absolute",top:8,right:8,width:7,height:7,borderRadius:"50%",background:t.color}}/>}
+                  <div style={{fontSize:24,fontWeight:800,color:t.count>0?t.color:"#9ca3af",lineHeight:1,marginBottom:4}}>{t.count}</div>
+                  <div style={{fontSize:11,fontWeight:700,color:isActive?t.color:t.count>0?"#374151":C.muted,lineHeight:1.3,marginBottom:2}}>{t.label}</div>
                   <div style={{fontSize:10,color:C.muted}}>{t.sub}</div>
                 </button>
               );
@@ -925,7 +1057,7 @@ function NodeInputs() {
           </div>
         </div>
 
-        {/* ── Toolbar: LMSC filter + count + CSV download ── */}
+        {/* Toolbar */}
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12,padding:"9px 14px",
           background:"#f8fafc",border:`1px solid ${C.border}`,borderRadius:8,flexWrap:"wrap"}}>
           <span style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4}}>LMSC</span>
@@ -933,31 +1065,19 @@ function NodeInputs() {
             style={{padding:"5px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,background:"#fff",outline:"none",
               fontWeight:lmscFilter!=="all"?700:400,color:lmscFilter!=="all"?C.primary:"#374151"}}>
             <option value="all">All LMSCs</option>
-            {LMSC_DATA.map(sc=>(
-              <option key={sc.lmscCode} value={sc.lmscCode}>{sc.lmscCode} — {sc.lmscName}</option>
-            ))}
+            {LMSC_DATA.map(sc=><option key={sc.lmscCode} value={sc.lmscCode}>{sc.lmscCode} — {sc.lmscName}</option>)}
           </select>
-
-          {(lmscFilter !== "all" || warnFilter !== "all") && (
+          {(lmscFilter!=="all"||warnFilter!=="all")&&(
             <button onClick={()=>{setLmscFilter("all");setWarnFilter("all");}}
-              style={{padding:"4px 10px",fontSize:11,fontWeight:600,borderRadius:99,
-                border:`1px solid ${C.border}`,background:"#fff",color:C.muted,cursor:"pointer"}}>
+              style={{padding:"4px 10px",fontSize:11,fontWeight:600,borderRadius:99,border:`1px solid ${C.border}`,background:"#fff",color:C.muted,cursor:"pointer"}}>
               Clear filters ✕
             </button>
           )}
-
           <span style={{marginLeft:"auto",fontSize:11,color:C.muted}}>
             <b style={{color:"#1a2233"}}>{sortedVisible.length}</b> warning row{sortedVisible.length!==1?"s":""} shown
-            {warnFilter !== "all" && (
-              <span style={{marginLeft:6,padding:"1px 8px",borderRadius:99,fontSize:10,fontWeight:700,
-                background:C.warningLight,color:"#92400e"}}>
-                {warnTiles.find(t=>t.key===warnFilter)?.label}
-              </span>
-            )}
+            {warnFilter!=="all"&&<span style={{marginLeft:6,padding:"1px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:C.warningLight,color:"#92400e"}}>{warnTiles.find(t=>t.key===warnFilter)?.label}</span>}
           </span>
-
-          {/* CSV download */}
-          <button onClick={downloadCSV} disabled={sortedVisible.length===0}
+          <button onClick={downloadWarningsCSV} disabled={sortedVisible.length===0}
             style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",fontSize:11,fontWeight:600,
               borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",color:C.muted,
               cursor:sortedVisible.length===0?"not-allowed":"pointer",opacity:sortedVisible.length===0?.5:1}}>
@@ -968,82 +1088,51 @@ function NodeInputs() {
           </button>
         </div>
 
-        {/* ── Warning rows table ── */}
-        {sortedVisible.length === 0
+        {/* Warning table */}
+        {sortedVisible.length===0
           ? <div style={{padding:"32px 24px",textAlign:"center",color:C.muted,borderRadius:8,border:`1px dashed ${C.border}`,background:"#fafafa"}}>
               <div style={{fontSize:28,marginBottom:8}}>✅</div>
               <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>
-                {warnFilter==="all" ? "No validation warnings found" : `No warnings of type "${warnTiles.find(t=>t.key===warnFilter)?.label}"`}
+                {warnFilter==="all"?"No validation warnings found":"No warnings of type: "+(warnTiles.find(t=>t.key===warnFilter)?.label||"")}
               </div>
-              <div style={{fontSize:12}}>
-                {warnFilter!=="all" ? "Try a different filter or clear to see all." : "All active links are clean."}
-              </div>
+              <div style={{fontSize:12}}>{warnFilter!=="all"?"Try a different filter or clear to see all.":"All active links are clean."}</div>
             </div>
           : <div style={{borderRadius:8,border:`1px solid ${C.border}`,overflow:"hidden"}}>
               <table style={{width:"100%",borderCollapse:"collapse"}}>
                 <thead>
                   <tr style={{background:"#f9fafb"}}>
                     {["LMSC","LMDC Code","LMDC Name","Zone","Capacity","Link Status","Mapped SCs","Warnings"].map((h,i)=>(
-                      <th key={i} style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,
-                        fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",
-                        letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
+                      <th key={i} style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedVisible.map((l, i) => {
-                    const isMultiSc = l.warns.some(w => w.key === "multisc");
-                    // For multisc view: detect if next row has same lmdcCode → group visual
-                    const nextL = sortedVisible[i + 1];
-                    const isGrouped = isMultiSc && nextL && nextL.lmdcCode === l.lmdcCode;
-                    const isLastInGroup = isMultiSc && sortedVisible[i - 1] && sortedVisible[i - 1].lmdcCode === l.lmdcCode;
-
+                  {sortedVisible.map((l,i)=>{
+                    const isMultiSc   = l.warns.some(w=>w.key==="multisc");
+                    const nextL       = sortedVisible[i+1];
+                    const isGrouped   = isMultiSc && nextL && nextL.lmdcCode===l.lmdcCode;
+                    const isLastGroup = isMultiSc && sortedVisible[i-1] && sortedVisible[i-1].lmdcCode===l.lmdcCode;
                     return (
-                      <tr key={i} style={{
-                        background: isMultiSc ? "#fff8ed" : "#fffdf5",
-                        boxShadow: `inset 3px 0 0 ${C.warning}`,
-                        borderBottom: isGrouped ? `1px dashed ${C.warning}40` : `1px solid ${C.border}`,
-                      }}>
-                        <td style={{padding:"7px 12px",borderBottom:"none",fontFamily:"monospace",fontSize:11,fontWeight:600}}>
-                          {l.lmscCode}
-                        </td>
-                        <td style={{padding:"7px 12px",borderBottom:"none",fontFamily:"monospace",fontSize:11,fontWeight: isMultiSc?700:400}}>
+                      <tr key={i} style={{background:isMultiSc?"#fff8ed":"#fffdf5",boxShadow:`inset 3px 0 0 ${C.warning}`,
+                        borderBottom:isGrouped?`1px dashed ${C.warning}40`:`1px solid ${C.border}`}}>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontFamily:"monospace",fontSize:11,fontWeight:600}}>{l.lmscCode}</td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontFamily:"monospace",fontSize:11,fontWeight:isMultiSc?700:400}}>
                           {l.lmdcCode}
-                          {isLastInGroup && (
-                            <span style={{marginLeft:6,padding:"1px 6px",borderRadius:99,fontSize:9,fontWeight:700,
-                              background:C.warningLight,color:"#92400e"}}>grouped</span>
-                          )}
+                          {isLastGroup&&<span style={{marginLeft:6,padding:"1px 6px",borderRadius:99,fontSize:9,fontWeight:700,background:C.warningLight,color:"#92400e"}}>grouped</span>}
                         </td>
                         <td style={{padding:"7px 12px",borderBottom:"none",fontSize:12}}>{l.lmdcName}</td>
                         <td style={{padding:"7px 12px",borderBottom:"none",fontSize:11,color:"#374151"}}>{l.zone}</td>
-                        <td style={{padding:"7px 12px",borderBottom:"none",fontSize:12,textAlign:"right",
-                          color:l.capacity<=0?C.warning:"#374151",fontWeight:l.capacity<=0?700:400}}>
-                          {l.capacity.toLocaleString()}
-                        </td>
-                        <td style={{padding:"7px 12px",borderBottom:"none"}}>
-                          {l.active
-                            ? <span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Active</span>
-                            : <span style={{fontSize:11,color:C.warning,fontWeight:600}}>Inactive</span>}
-                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:"none",fontSize:12,textAlign:"right",color:l.capacity<=0?C.warning:"#374151",fontWeight:l.capacity<=0?700:400}}>{l.capacity.toLocaleString()}</td>
+                        <td style={{padding:"7px 12px",borderBottom:"none"}}>{l.active?<span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Active</span>:<span style={{fontSize:11,color:C.warning,fontWeight:600}}>Inactive</span>}</td>
                         <td style={{padding:"7px 12px",borderBottom:"none",fontSize:11,color:C.muted}}>
-                          {l.mappedScs.length > 1
-                            ? <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                                {l.mappedScs.map((sc,si)=>(
-                                  <span key={si} style={{fontFamily:"monospace",fontSize:10,
-                                    fontWeight: sc===l.lmscCode?700:400,
-                                    color: sc===l.lmscCode?C.primary:C.muted}}>{sc}</span>
-                                ))}
-                              </div>
-                            : <span style={{fontFamily:"monospace",fontSize:10}}>{l.mappedScs[0]}</span>}
+                          {l.mappedScs.length>1
+                            ?<div style={{display:"flex",flexDirection:"column",gap:2}}>{l.mappedScs.map((sc,si)=><span key={si} style={{fontFamily:"monospace",fontSize:10,fontWeight:sc===l.lmscCode?700:400,color:sc===l.lmscCode?C.primary:C.muted}}>{sc}</span>)}</div>
+                            :<span style={{fontFamily:"monospace",fontSize:10}}>{l.mappedScs[0]}</span>}
                         </td>
                         <td style={{padding:"7px 12px",borderBottom:"none"}}>
                           <div style={{display:"flex",flexDirection:"column",gap:3}}>
                             {l.warns.map((w,wi)=>(
-                              <span key={wi} style={{display:"inline-flex",alignItems:"center",gap:4,
-                                padding:"1px 8px",borderRadius:99,fontSize:10,fontWeight:700,
-                                background:C.warningLight,color:"#92400e",whiteSpace:"nowrap"}}>
-                                ⚠ {w.m}
-                              </span>
+                              <span key={wi} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"1px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:C.warningLight,color:"#92400e",whiteSpace:"nowrap"}}>⚠ {w.m}</span>
                             ))}
                           </div>
                         </td>
@@ -1053,25 +1142,156 @@ function NodeInputs() {
                 </tbody>
               </table>
             </div>}
-
-        <div style={{display:"flex",justifyContent:"flex-end",marginTop:12}}>
-          <Btn onClick={()=>setStep(2)}>Confirm & Proceed </Btn>
-        </div>
       </div>}
 
-      {step===2&&<div>
-        <UploadCard label="Node Additions & Closures" desc='Upload with Node Flag = "Addition" or "Closure".' cols={["LMSC Code","LMDC Code *","Node Flag *","LMDC Latitude *","LMDC Longitude *"]}/>
-        <div style={{display:"flex",justifyContent:"space-between",marginTop:8}}>
-          <Btn variant="ghost" onClick={()=>setStep(1)}>Back</Btn>
-          <Btn onClick={()=>setStep(3)}>Next </Btn>
-        </div>
-      </div>}
+      {/* ═══════════════ TAB 2: Node Additions, Closures & Migrations ═══════════════ */}
+      {tab==="changes"&&<div>
 
-      {step===3&&<div>
-        <UploadCard label="Node Migrations" desc="Upload planned SC migrations. Codes must match AutoDML master." cols={["LMSC Code *","LMDC Code *"]}/>
-        <div style={{display:"flex",justifyContent:"flex-start",marginTop:8}}>
-          <Btn variant="ghost" onClick={()=>setStep(2)}>Back</Btn>
+        {/* Info banner */}
+        <div style={{marginBottom:14,padding:"10px 14px",background:"#eef4ff",border:"1px solid #bfdbfe",borderRadius:8,fontSize:12,color:C.muted}}>
+          All three actions use a single template. <b style={{color:"#1a2233"}}>Node Flag</b> drives the action:
+          <span style={{marginLeft:6,padding:"1px 8px",borderRadius:99,fontSize:11,fontWeight:700,background:"#dcfce7",color:"#16a34a"}}>Addition</span> adds a new node,
+          <span style={{margin:"0 4px",padding:"1px 8px",borderRadius:99,fontSize:11,fontWeight:700,background:C.dangerLight,color:C.danger}}>Closure</span> deactivates,
+          <span style={{padding:"1px 8px",borderRadius:99,fontSize:11,fontWeight:700,background:"#e0e7ff",color:"#3730a3"}}>Migration</span> moves the node to a new SC.
+          Uploading a new file <b style={{color:"#1a2233"}}>replaces</b> all prior records.
         </div>
+
+        {/* Upload card */}
+        <div style={{border:`1px solid ${changeStatus==="submitted"?"#16a34a":changeStatus==="error"?C.danger:changeStatus==="ready"?C.primary:C.border}`,
+          borderRadius:8,overflow:"hidden",background:"#fff",marginBottom:14}}>
+
+          <div style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px"}}>
+            <input ref={changeRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleChangeFile}/>
+            {/* CSV icon */}
+            <div onClick={()=>changeRef.current?.click()} title="Upload CSV"
+              style={{width:32,height:32,background:"#f0fdf4",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center",
+                cursor:"pointer",border:`1px solid ${changeStatus==="submitted"?"#16a34a":C.border}`,flexShrink:0}}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke={changeStatus==="submitted"?"#16a34a":changeStatus==="error"?C.danger:"#6b7280"}
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14,2 14,8 20,8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10,9 9,9 8,9"/>
+              </svg>
+            </div>
+            {/* Label */}
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,fontWeight:600,color:"#1a2233"}}>Node Additions, Closures & Migrations</div>
+              <div style={{fontSize:11,color:C.muted,marginTop:1}}>CSV only · replaces prior upload on each submission</div>
+              {changeFile&&<div style={{fontSize:11,color:changeStatus==="error"?C.danger:C.muted,marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{changeFile}</div>}
+            </div>
+            {/* Actions */}
+            <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
+              <button onClick={e=>{e.stopPropagation();NODE_CHANGE_SCHEMA.templateDownload();}}
+                style={{display:"inline-flex",alignItems:"center",gap:5,padding:"4px 10px",fontSize:11,fontWeight:600,
+                  borderRadius:5,border:`1px solid ${C.border}`,background:"#f9fafb",cursor:"pointer",color:C.muted,whiteSpace:"nowrap"}}>
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                Template
+              </button>
+              {changeStatus==="submitted"
+                ?<><span style={{fontSize:11,color:"#16a34a",fontWeight:500}}>Submitted</span>
+                   <button onClick={resetChangeUpload} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Undo</button></>
+                :changeStatus==="ready"
+                  ?<><Btn size="sm" onClick={()=>{setChangeStatus("submitted");showToast("Node changes submitted successfully");}}>Submit</Btn>
+                     <button onClick={resetChangeUpload} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>✕</button></>
+                  :changeStatus==="error"
+                    ?<button onClick={resetChangeUpload} style={{fontSize:11,color:C.danger,background:"none",border:"none",cursor:"pointer"}}>Clear ✕</button>
+                    :<button onClick={()=>changeRef.current?.click()} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>CSV only</button>}
+            </div>
+          </div>
+
+          {/* Schema info strip */}
+          {changeStatus==="idle"&&(
+            <div style={{padding:"6px 14px 8px",background:"#f8fafc",borderTop:`1px solid ${C.border}`,display:"flex",gap:14,flexWrap:"wrap",fontSize:11,color:C.muted}}>
+              <span><b style={{color:"#374151"}}>LMSC Code</b> · Mandatory · alphanumeric · 3–6 chars</span>
+              <span style={{color:C.border}}>|</span>
+              <span><b style={{color:"#374151"}}>LMDC Code</b> · Mandatory · alphanumeric · 3–6 chars</span>
+              <span style={{color:C.border}}>|</span>
+              <span><b style={{color:"#374151"}}>Node Flag</b> · Mandatory · Addition / Closure / Migration</span>
+              <span style={{color:C.border}}>|</span>
+              <span><b style={{color:"#374151"}}>Lat / Lng</b> · Mandatory for Addition</span>
+            </div>
+          )}
+
+          {/* Validation errors */}
+          {changeErrors.length>0&&changeStatus==="error"&&(
+            <div style={{padding:"8px 14px",background:C.dangerLight,borderTop:`1px solid ${C.border}`}}>
+              <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",color:C.danger,marginBottom:4}}>
+                🚫 {changeErrors.length} error{changeErrors.length!==1?"s":""} — fix before submitting
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:2,maxHeight:100,overflowY:"auto"}}>
+                {changeErrors.map((e,i)=>(
+                  <div key={i} style={{fontSize:11,color:"#7f1d1d"}}>
+                    {e.row?"Row "+e.row+" — ":""}{e.msgs.join(" · ")}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Uploaded nodes table */}
+        {uploadedNodes.length>0&&(
+          <div style={{borderRadius:8,border:`1px solid ${C.border}`,overflow:"hidden"}}>
+            <div style={{padding:"8px 14px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,
+              display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span style={{fontSize:12,fontWeight:700,color:"#1a2233"}}>
+                {uploadedNodes.length} node{uploadedNodes.length!==1?"s":""} loaded
+              </span>
+              <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                {["Addition","Closure","Migration"].map(flag=>{
+                  const n = uploadedNodes.filter(r=>(r["node flag"]||"").trim()===flag).length;
+                  if (!n) return null;
+                  const s = flagStyle(flag);
+                  return <span key={flag} style={{padding:"2px 9px",borderRadius:99,fontSize:10,fontWeight:700,background:s.bg,color:s.color}}>{n} {flag}</span>;
+                })}
+              </div>
+            </div>
+            <div style={{overflowX:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead>
+                  <tr style={{background:"#f9fafb"}}>
+                    {["LMSC Code","LMDC Code","Node Flag","LMDC Latitude","LMDC Longitude"].map((h,i)=>(
+                      <th key={i} style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,
+                        fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",
+                        letterSpacing:.4,textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {uploadedNodes.map((row,i)=>{
+                    const flag = (row["node flag"]||"").trim();
+                    const s    = flagStyle(flag);
+                    return (
+                      <tr key={i} style={{background:i%2===0?"#fff":"#fafafa"}}>
+                        <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11,fontWeight:600}}>{row["lmsc code"]||"—"}</td>
+                        <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontFamily:"monospace",fontSize:11}}>{row["lmdc code"]||"—"}</td>
+                        <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}>
+                          <span style={{padding:"2px 9px",borderRadius:99,fontSize:10,fontWeight:700,background:s.bg,color:s.color}}>{flag||"—"}</span>
+                        </td>
+                        <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:"#374151"}}>{row["lmdc latitude"]||<span style={{color:C.muted}}>—</span>}</td>
+                        <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:"#374151"}}>{row["lmdc longitude"]||<span style={{color:C.muted}}>—</span>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!changeFile&&uploadedNodes.length===0&&(
+          <div style={{padding:"36px 24px",textAlign:"center",color:C.muted,borderRadius:8,border:`1px dashed ${C.border}`,background:"#fafafa"}}>
+            <div style={{fontSize:28,marginBottom:8}}>📋</div>
+            <div style={{fontWeight:600,fontSize:13,marginBottom:4}}>No nodes uploaded yet</div>
+            <div style={{fontSize:12}}>Upload a CSV using the card above. Download the template for the exact column format.</div>
+          </div>
+        )}
       </div>}
     </div>
   );
@@ -1110,14 +1330,17 @@ const SC_MASTER_SEED = [
 ];
 
 // SC Vehicle Availability seed
+// ─── SC Vehicle Availability seed (from _Template__Sort_Center_Master.xlsx) ──
+// Columns: SC Code*, Vehicle Type* (from VM), Capacity (Shipments), Distance Limit (Kms),
+//          Vehicle Count, Touch Point Limit, Zone Feasibility (Local|Non-Local|Both)
 const SCV_SEED = [
-  {scCode:"LMSC-BLR-01",vehicleType:"17ft",  cap:250, dist:400, count:4,tpLimit:5},
-  {scCode:"LMSC-BLR-01",vehicleType:"Bolero", cap:80,  dist:150, count:2,tpLimit:10},
-  {scCode:"LMSC-HYD-01",vehicleType:"19ft",  cap:400, dist:600, count:3,tpLimit:4},
-  {scCode:"LMSC-HYD-01",vehicleType:"17ft",  cap:250, dist:400, count:2,tpLimit:5},
-  {scCode:"LMSC-DEL-01",vehicleType:"32ft MXL",cap:1000,dist:2000,count:2,tpLimit:2},
-  {scCode:"LMSC-DEL-01",vehicleType:"17ft",  cap:250, dist:400, count:4,tpLimit:5},
-  {scCode:"LMSC-DEL-01",vehicleType:"Bolero", cap:80,  dist:150, count:3,tpLimit:10},
+  {scCode:"LMSC-BLR-01",vehicleType:"17FT Trailer", cap:280, dist:400, count:4, tpLimit:5,  zoneFeas:"Both"},
+  {scCode:"LMSC-BLR-01",vehicleType:"10FT Trailer", cap:120, dist:200, count:2, tpLimit:7,  zoneFeas:"Local"},
+  {scCode:"LMSC-HYD-01",vehicleType:"20FT Trailer", cap:380, dist:500, count:3, tpLimit:4,  zoneFeas:"Both"},
+  {scCode:"LMSC-HYD-01",vehicleType:"17FT Trailer", cap:280, dist:400, count:2, tpLimit:5,  zoneFeas:"Non-Local"},
+  {scCode:"LMSC-DEL-01",vehicleType:"32FT Trailer", cap:950, dist:2000,count:2, tpLimit:2,  zoneFeas:"Both"},
+  {scCode:"LMSC-DEL-01",vehicleType:"17FT Trailer", cap:280, dist:400, count:4, tpLimit:5,  zoneFeas:"Both"},
+  {scCode:"LMSC-DEL-01",vehicleType:"10FT Trailer", cap:120, dist:200, count:3, tpLimit:7,  zoneFeas:"Local"},
 ];
 
 function NodeVehicleMaster() {
@@ -1135,12 +1358,12 @@ function NodeVehicleMaster() {
 
   // SC Vehicle Availability modal
   const [scvModal,    setScvModal]    = useState(false);
-  const [scvForm,     setScvForm]     = useState({scCode:"",vehicleType:"",cap:"",dist:"",count:"",tpLimit:""});
+  const [scvForm,     setScvForm]     = useState({scCode:"",vehicleType:"",cap:"",dist:"",count:"",tpLimit:"",zoneFeas:"Both"});
   const [scvEditIdx,  setScvEditIdx]  = useState(null);
 
   // VM modal
   const [vmModal,     setVmModal]     = useState(false);
-  const [vmForm,      setVmForm]      = useState({type:"",cap:"",dist:"",tp:"",tpLocal:"",tpNonLocal:"",feas:[]});
+  const [vmForm,      setVmForm]      = useState({type:"",cap:"",dist:"",tp:"",feas:[]});
 
   const feasColor = {"FM Carting":"default","NLH":"default","RLH":"default"};
 
@@ -1172,8 +1395,8 @@ function NodeVehicleMaster() {
         lhOpsAM1:   r["sc-lh ops am-1"]||"",
         opsAM2:     r["sc ops am-2"]||"",
         lhOpsAM2:   r["sc-lh ops am-2"]||"",
-        tpLocal:    +r["tp limit (local)"]||5,
-        tpNonLocal: +r["tp limit (non-local)"]||3,
+        tpLocal:    +r["local tp limit"]||+r["tp limit (local)"]||5,
+        tpNonLocal: +r["non-local tp limit"]||+r["tp limit (non-local)"]||3,
       };
       if(rec.scCode) out.push(rec);
     });
@@ -1189,6 +1412,7 @@ function NodeVehicleMaster() {
       dist:        r["distance limit (kms)"]!==undefined ? +r["distance limit (kms)"]  : null,
       count:       +r["vehicle count"]||0,
       tpLimit:     r["touch point limit"]!==undefined ? +r["touch point limit"] : null,
+      zoneFeas:    r["zone feasibility"] || "Both",
     })).filter(r=>r.scCode&&r.vehicleType);
   };
 
@@ -1214,6 +1438,7 @@ function NodeVehicleMaster() {
           dist:        r.dist ?? vm?.dist ?? 0,
           count:       r.count,
           tpLimit:     r.tpLimit ?? vm?.tp ?? 5,
+          zoneFeas:    r.zoneFeas || "Both",
         };
       });
       return Object.values(map);
@@ -1236,8 +1461,8 @@ function NodeVehicleMaster() {
   const deleteSc = code => { setScMaster(p=>p.filter(s=>s.scCode!==code)); setScvData(p=>p.filter(r=>r.scCode!==code)); setDelScCode(null); };
 
   // ── Add/Edit SCV Modal ───────────────────────────────────────────────────
-  const openAddScv = () => { setScvForm({scCode:scMaster[0]?.scCode||"",vehicleType:vmData[0]?.type||"",cap:"",dist:"",count:"",tpLimit:""}); setScvEditIdx(null); setScvModal(true); };
-  const openEditScv = (idx,row) => { setScvForm({...row,cap:String(row.cap),dist:String(row.dist),count:String(row.count),tpLimit:String(row.tpLimit)}); setScvEditIdx(idx); setScvModal(true); };
+  const openAddScv = () => { setScvForm({scCode:scMaster[0]?.scCode||"",vehicleType:vmData[0]?.type||"",cap:"",dist:"",count:"",tpLimit:"",zoneFeas:"Both"}); setScvEditIdx(null); setScvModal(true); };
+  const openEditScv = (idx,row) => { setScvForm({...row,cap:String(row.cap),dist:String(row.dist),count:String(row.count),tpLimit:String(row.tpLimit),zoneFeas:row.zoneFeas||"Both"}); setScvEditIdx(idx); setScvModal(true); };
   const saveScv = () => {
     const vm = vmByType(scvForm.vehicleType);
     const tpMax = vm?.tp ?? 99;
@@ -1248,6 +1473,7 @@ function NodeVehicleMaster() {
       dist:        +scvForm.dist || vm?.dist || 0,
       count:       +scvForm.count || 0,
       tpLimit:     Math.min(+scvForm.tpLimit || tpMax, tpMax),
+      zoneFeas:    scvForm.zoneFeas || "Both",
     };
     setScvData(prev => {
       if(scvEditIdx!==null){ const n=[...prev]; n[scvEditIdx]=rec; return n; }
@@ -1284,8 +1510,20 @@ function NodeVehicleMaster() {
           <CsvUploadCard
             label="Bulk Upload — SC Master"
             desc="Upload SC Master CSV. SC Code is the unique key — existing records are overwritten."
-            cols={["SC Code *","SC Name","SC City,State","SC Type *","Zone *","Volume Capacity *","Sort Capacity *","NLH Docks *","RLH Docks *","SC Opening Time","SC Closing Time","SC Ops ZH","SC-LH Ops ZH","SC Ops CH","SC-LH Ops CH","SC Ops AM-1","SC-LH Ops AM-1","SC Ops AM-2","SC-LH Ops AM-2"]}
+            cols={["SC Code *","SC Name","SC City,State","SC Type *","Zone *","Volume Capacity *","Sort Capacity *","NLH Docks *","RLH Docks *","Local TP Limit","Non-Local TP Limit","SC Opening Time","SC Closing Time","SC Ops ZH","SC-LH Ops ZH","SC Ops CH","SC-LH Ops CH","SC Ops AM-1","SC-LH Ops AM-1","SC Ops AM-2","SC-LH Ops AM-2"]}
             onLoad={text=>applyScUpload(parseCsvSc(text))}
+            templateDownload={()=>{
+              const rows=[
+                ["Mandatory/Optional:","Mandatory","Optional","Optional","Mandatory","Mandatory","Mandatory","Mandatory","Mandatory","Mandatory","Optional","Optional","Time","Time","Optional","Optional","Optional","Optional","Optional","Optional","Optional","Optional"],
+                ["Input Format:","alphanumeric","Text","Text","Selection","Selection","Number","Number","Number","Number","Number","Number","Time","Time","email ID","email ID","email ID","email ID","email ID","email ID","email ID","email ID"],
+                ["Validation Rule","3-6 characters","","","FMSC/LMSC/Hybrid","North/South/East/West","","","","","Max=7 (Warning)","Max=7 (Warning)","","","","","","","","","",""],
+                ["Column Name:","SC Code","SC Name","SC City,State","SC Type","Zone","Volume Capacity","Sort Capacity","NLH Docks","RLH Docks","Local TP Limit","Non-Local TP Limit","SC Opening Time","SC Closing Time","SC Ops ZH","SC-LH Ops ZH","SC Ops CH","SC-LH Ops CH","SC Ops AM-1","SC-LH Ops AM-1","SC Ops AM-2","SC-LH Ops AM-2"],
+                ["","LMSC-BLR-01","Bangalore LMSC","Bangalore, KA","LMSC","South","12000","9500","12","20","5","3","06:00","22:00","zh-south@co.in","lh-zh@co.in","ch-blr@co.in","lh-ch@co.in","am1@co.in","lh-am1@co.in","",""],
+              ];
+              const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
+              const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+              a.download="_Template__Sort_Center_Master.csv";a.click();
+            }}
           />
         </div>
 
@@ -1301,7 +1539,7 @@ function NodeVehicleMaster() {
             <table style={{width:"100%",borderCollapse:"collapse"}}>
               <thead>
                 <tr style={{background:"#f8fafc"}}>
-                  {["SC Code","SC Name","City / State","Type","Zone","Vol Cap","Sort Cap (TPH)","NLH Docks","RLH Docks","Open","Close","TP Local","TP Non-Local",""].map((h,i)=>(
+                  {["SC Code","SC Name","City / State","Type","Zone","Vol Cap","Sort Cap","NLH Docks","RLH Docks","Local TP","Non-Local TP","Open","Close",""].map((h,i)=>(
                     <th key={i} style={{padding:"7px 11px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:i>4&&i<13?"right":"left",whiteSpace:"nowrap"}}>{h}</th>
                   ))}
                 </tr>
@@ -1318,14 +1556,16 @@ function NodeVehicleMaster() {
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right"}}>{sc.sortCap.toLocaleString()}</td>
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right"}}>{sc.nlhDocks}</td>
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right"}}>{sc.rlhDocks}</td>
+                    <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
+                      <span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:sc.tpLocal>7?"#fffbeb":"#e0e7ff",color:sc.tpLocal>7?C.warning:"#3730a3"}}>{sc.tpLocal}</span>
+                      {sc.tpLocal>7&&<span style={{fontSize:9,color:C.warning,marginLeft:3}}>⚠</span>}
+                    </td>
+                    <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
+                      <span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:sc.tpNonLocal>7?"#fffbeb":"#fce7f3",color:sc.tpNonLocal>7?C.warning:"#9d174d"}}>{sc.tpNonLocal}</span>
+                      {sc.tpNonLocal>7&&<span style={{fontSize:9,color:C.warning,marginLeft:3}}>⚠</span>}
+                    </td>
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.muted}}>{sc.openTime||"—"}</td>
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.muted}}>{sc.closeTime||"—"}</td>
-                    <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
-                      <span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:"#e0e7ff",color:"#3730a3"}}>{sc.tpLocal}</span>
-                    </td>
-                    <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
-                      <span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:"#fce7f3",color:"#9d174d"}}>{sc.tpNonLocal}</span>
-                    </td>
                     <td style={{padding:"8px 11px",borderBottom:`1px solid ${C.border}`}}>
                       <div style={{display:"flex",gap:5}}>
                         <button onClick={()=>openEditSc(sc)} title="Edit" style={{padding:"3px 7px",fontSize:12,border:`1px solid ${C.border}`,background:"#fff",borderRadius:4,cursor:"pointer",color:C.muted}}>✏</button>
@@ -1347,8 +1587,20 @@ function NodeVehicleMaster() {
           <CsvUploadCard
             label="Bulk Upload — SC Vehicle Availability"
             desc="Upload vehicle availability per SC. SC Code + Vehicle Type is the composite key — existing rows are overwritten. Blank optional fields default to Vehicle Master values."
-            cols={["SC Code *","Vehicle Type *","Capacity (Shipments)","Distance Limit (Kms)","Vehicle Count","Touch Point Limit"]}
+            cols={["SC Code *","Vehicle Type *","Capacity (Shipments)","Distance Limit (Kms)","Vehicle Count","Touch Point Limit","Zone Feasibility"]}
             onLoad={text=>applyScvUpload(parseCsvScv(text))}
+            templateDownload={()=>{
+              const rows=[
+                ["Mandatory/Optional:","Mandatory","Mandatory","Optional","Optional","Optional","Optional","Optional"],
+                ["Input Format:","alphanumeric","Selection","Number","Number","Number","Number","Custom"],
+                ["Validation Rule","3-6 characters","List as per Vehicle Master","Default as per VM","Default as per VM","","Default as per VM","Local/Non-Local/Both (Default)"],
+                ["Column Name:","SC Code","Vehicle Type","Capacity (Shipments)","Distance Limit (Kms)","Vehicle Count","Touch Point Limit","Zone Feasibility"],
+                ["","LMSC-BLR-01","17FT Trailer","280","400","4","5","Both"],
+              ];
+              const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
+              const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+              a.download="_Template__SC_Vehicle_Availability.csv";a.click();
+            }}
           />
         </div>
 
@@ -1368,21 +1620,21 @@ function NodeVehicleMaster() {
                 <Badge small color="default">{sc.zone}</Badge>
                 <Badge small color="primary">{rows.length} vehicle type{rows.length!==1?"s":""}</Badge>
                 <span style={{marginLeft:"auto"}}>
-                  <button onClick={()=>{setScvForm({scCode:sc.scCode,vehicleType:vmData[0]?.type||"",cap:"",dist:"",count:"",tpLimit:""});setScvEditIdx(null);setScvModal(true);}} style={{padding:"3px 10px",fontSize:11,fontWeight:600,borderRadius:6,border:`1px solid ${C.border}`,background:"#fff",color:C.accent,cursor:"pointer"}}>＋ Add</button>
+                  <button onClick={()=>{setScvForm({scCode:sc.scCode,vehicleType:vmData[0]?.type||"",cap:"",dist:"",count:"",tpLimit:"",zoneFeas:"Both"});setScvEditIdx(null);setScvModal(true);}} style={{padding:"3px 10px",fontSize:11,fontWeight:600,borderRadius:6,border:`1px solid ${C.border}`,background:"#fff",color:C.accent,cursor:"pointer"}}>＋ Add</button>
                 </span>
               </div>
               {rows.length===0
                 ? <div style={{padding:"16px 18px",display:"flex",alignItems:"center",gap:10}}>
                     <span style={{fontSize:18}}>🚛</span>
                     <span style={{fontSize:12,color:C.muted}}>No vehicle availability configured for this SC.</span>
-                    <button onClick={()=>{setScvForm({scCode:sc.scCode,vehicleType:vmData[0]?.type||"",cap:"",dist:"",count:"",tpLimit:""});setScvEditIdx(null);setScvModal(true);}}
+                    <button onClick={()=>{setScvForm({scCode:sc.scCode,vehicleType:vmData[0]?.type||"",cap:"",dist:"",count:"",tpLimit:"",zoneFeas:"Both"});setScvEditIdx(null);setScvModal(true);}}
                       style={{marginLeft:"auto",padding:"4px 12px",fontSize:11,fontWeight:700,borderRadius:6,border:`1px solid ${C.accent}`,background:C.accentLight,color:"#065f46",cursor:"pointer"}}>
                       ＋ Add Vehicle
                     </button>
                   </div>
                 : <div style={{overflowX:"auto"}}>
                     <table style={{width:"100%",borderCollapse:"collapse"}}>
-                      <thead><tr>{["Vehicle Type","Capacity (Shpmt)","Distance Limit (km)","Vehicle Count","TP Limit","vs. VM Max",""].map((h,i)=><th key={i} style={{padding:"6px 12px",background:"#fff",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>0&&i<5?"right":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+                      <thead><tr>{["Vehicle Type","Capacity (Shipments)","Distance Limit (Kms)","Vehicle Count","TP Limit","Zone Feas.","vs. VM Max",""].map((h,i)=><th key={i} style={{padding:"6px 12px",background:"#fff",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>0&&i<5?"right":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
                       <tbody>
                         {rows.map((row,ri)=>{
                           const vmRow = vmByType(row.vehicleType);
@@ -1403,6 +1655,9 @@ function NodeVehicleMaster() {
                             <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
                               <span style={{padding:"2px 8px",borderRadius:99,fontSize:11,fontWeight:700,background:tpOver?C.warningLight:"#f3f5f9",color:tpOver?"#92400e":"#374151"}}>{row.tpLimit}</span>
                               {tpOver&&<Badge small color="warning" style={{marginLeft:4}}>⚠ Exceeds VM max ({tpMax})</Badge>}
+                            </td>
+                            <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}>
+                              {(()=>{const zf=row.zoneFeas||"Both";const zfS=zf==="Local"?{bg:"#e0e7ff",col:"#3730a3"}:zf==="Non-Local"?{bg:"#fce7f3",col:"#9d174d"}:{bg:"#f3f5f9",col:"#374151"};return <span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:zfS.bg,color:zfS.col}}>{zf}</span>;})()}
                             </td>
                             <td style={{padding:"7px 12px",borderBottom:`1px solid ${C.border}`}}>
                               {vmRow
@@ -1427,18 +1682,36 @@ function NodeVehicleMaster() {
 
       {/* ══════════════════ VEHICLE MASTER ══════════════════ */}
       {tab==="vm"&&<div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-          <div style={{fontSize:12,fontWeight:700,color:"#1a2233"}}>{vmData.length} vehicle types configured</div>
-          <div style={{display:"flex",gap:7}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,flexWrap:"wrap",gap:8}}>
+          <div style={{fontSize:12,fontWeight:700,color:"#1a2233"}}>{vmData.length} vehicle types</div>
+          <div style={{display:"flex",gap:7,alignItems:"center",flexWrap:"wrap"}}>
             <div style={{padding:"6px 12px",background:"#eef4ff",borderRadius:7,fontSize:11,color:C.primary,border:"1px solid #bfdbfe"}}>
-              ℹ TP Limit values here are the <b>hard caps</b> — SC Vehicle Availability cannot exceed these
+              ℹ Touch Point Limit is the hard cap — SC Vehicle Availability cannot exceed this
             </div>
-            <Btn size="sm" onClick={()=>{setVmForm({type:"",cap:"",dist:"",tp:"",tpLocal:"",tpNonLocal:"",feas:[]});setVmModal(true);}}>＋ Add Vehicle Type</Btn>
+            <button onClick={()=>{
+              const rows=[
+                ["Mandatory/Optional:","Mandatory","Mandatory","Mandatory","Mandatory","Mandatory"],
+                ["Input Format:","Selection","Number","Number","Number","Selection (Multi)"],
+                ["Validation Rule","7FT/8FT/10FT/14FT/17FT/20FT/22FT/24FT/32FT/42FT Trailer","Default for vehicle type","Default for vehicle type","Default for vehicle type","FM Carting/NLH/RLH"],
+                ["Column Name:","Vehicle Type","Capacity (Shipments)","Distance Limit (Kms)","Touch Point Limit","LH Feasibility"],
+                ["","17FT Trailer","280","400","5","NLH;RLH"],
+                ["","32FT Trailer","950","2000","2","NLH;RLH"],
+              ];
+              const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(",")).join("\n");
+              const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+              a.download="_Table__Vehicle_Master.csv";a.click();
+            }} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",fontSize:11,fontWeight:600,borderRadius:7,border:`1px solid ${C.border}`,background:"#fff",color:C.muted,cursor:"pointer"}}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Template
+            </button>
+            <Btn size="sm" onClick={()=>{setVmForm({type:"",cap:"",dist:"",tp:"",feas:[]});setVmModal(true);}}>＋ Add Vehicle Type</Btn>
           </div>
         </div>
         <div style={{borderRadius:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr>{["Vehicle Type","Capacity (Shpmt)","Distance Limit","TP Limit (Hard Cap)","TP Limit (Local)","TP Limit (Non-Local)","LH Feasibility",""].map((h,i)=><th key={i} style={{padding:"8px 12px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>0&&i<6?"right":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+            <thead><tr>{["Vehicle Type","Capacity (Shipments)","Distance Limit (Kms)","Touch Point Limit","LH Feasibility",""].map((h,i)=><th key={i} style={{padding:"8px 12px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>0&&i<4?"right":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
             <tbody>{vmData.map((vm,vi)=>(
               <tr key={vm.type} style={{background:"#fff"}}>
                 <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`,fontWeight:700,fontSize:12}}>{vm.type}</td>
@@ -1447,13 +1720,7 @@ function NodeVehicleMaster() {
                 <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
                   <span style={{padding:"2px 9px",borderRadius:99,fontSize:11,fontWeight:700,background:"#fee2e2",color:"#991b1b"}}>{vm.tp}</span>
                 </td>
-                <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
-                  <span style={{padding:"2px 9px",borderRadius:99,fontSize:10,fontWeight:700,background:"#e0e7ff",color:"#3730a3"}}>{vm.tpLocal}</span>
-                </td>
-                <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`,textAlign:"right"}}>
-                  <span style={{padding:"2px 9px",borderRadius:99,fontSize:10,fontWeight:700,background:"#fce7f3",color:"#9d174d"}}>{vm.tpNonLocal}</span>
-                </td>
-                <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`}}><div style={{display:"flex",gap:4}}>{(vm.feas||[]).map(f=><Badge key={f} small color={feasColor[f]||"default"}>{f}</Badge>)}</div></td>
+                <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`}}><div style={{display:"flex",gap:4}}>{(vm.feas||[]).map(f=><Badge key={f} small color="default">{f}</Badge>)}</div></td>
                 <td style={{padding:"9px 12px",borderBottom:`1px solid ${C.border}`}}>
                   <button onClick={()=>setVmData(p=>p.filter((_,i)=>i!==vi))} style={{padding:"2px 8px",fontSize:10,fontWeight:600,borderRadius:4,border:`1px solid ${C.dangerLight}`,background:C.dangerLight,color:C.danger,cursor:"pointer"}}>🗑</button>
                 </td>
@@ -1480,23 +1747,28 @@ function NodeVehicleMaster() {
           <SF label="SC Code" field="scCode" mand/>
           <SF label="SC Name" field="scName"/>
           <SF label="SC City, State" field="scCity"/>
-          <SF label="SC Type" field="scType" opts={["LMSC","FMSC","Hybrid"]} mand/>
+          <SF label="SC Type" field="scType" opts={["FMSC","LMSC","Hybrid"]} mand/>
           <SF label="Zone" field="zone" opts={["North","South","East","West"]} mand/>
           <SF label="Volume Capacity" field="volCap" type="number" mand/>
-          <SF label="Sort Capacity (TPH)" field="sortCap" type="number" mand/>
+          <SF label="Sort Capacity" field="sortCap" type="number" mand/>
           <SF label="NLH Docks" field="nlhDocks" type="number" mand/>
           <SF label="RLH Docks" field="rlhDocks" type="number" mand/>
-          <SF label="Opening Time" field="openTime" type="time"/>
-          <SF label="Closing Time" field="closeTime" type="time"/>
-          <SF label="TP Limit (Local)" field="tpLocal" type="number" mand/>
-          <SF label="TP Limit (Non-Local)" field="tpNonLocal" type="number" mand/>
-          <SF label="Ops ZH" field="opsZH"/>
+          <SF label="Local TP Limit" field="tpLocal" type="number" mand/>
+          <SF label="Non-Local TP Limit" field="tpNonLocal" type="number" mand/>
+          <SF label="SC Opening Time" field="openTime" type="time"/>
+          <SF label="SC Closing Time" field="closeTime" type="time"/>
+        </div>
+        <div style={{padding:"7px 12px",background:"#f8fafc",borderRadius:7,fontSize:11,color:C.muted,marginBottom:10,border:`1px solid ${C.border}`}}>
+          📧 Contact fields below are email IDs (ops contacts)
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:8}}>
+          <SF label="SC Ops ZH" field="opsZH"/>
           <SF label="SC-LH Ops ZH" field="lhOpsZH"/>
-          <SF label="Ops CH" field="opsCH"/>
+          <SF label="SC Ops CH" field="opsCH"/>
           <SF label="SC-LH Ops CH" field="lhOpsCH"/>
-          <SF label="Ops AM-1" field="opsAM1"/>
+          <SF label="SC Ops AM-1" field="opsAM1"/>
           <SF label="SC-LH Ops AM-1" field="lhOpsAM1"/>
-          <SF label="Ops AM-2" field="opsAM2"/>
+          <SF label="SC Ops AM-2" field="opsAM2"/>
           <SF label="SC-LH Ops AM-2" field="lhOpsAM2"/>
         </div>
         <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:8}}>
@@ -1531,6 +1803,14 @@ function NodeVehicleMaster() {
             {scvForm.vehicleType&&+scvForm.tpLimit>tpCapForType(scvForm.vehicleType)&&
               <div style={{marginTop:4,padding:"3px 8px",background:C.warningLight,borderRadius:5,fontSize:10,color:"#92400e"}}>⚠ Exceeds VM hard cap of {tpCapForType(scvForm.vehicleType)} — will be capped on save</div>}
           </FieldLabel>
+          <FieldLabel label="Zone Feasibility">
+            <select value={scvForm.zoneFeas||"Both"} onChange={e=>setScvForm(p=>({...p,zoneFeas:e.target.value}))}
+              style={{width:"100%",padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:12,outline:"none"}}>
+              <option value="Both">Both (Default)</option>
+              <option value="Local">Local</option>
+              <option value="Non-Local">Non-Local</option>
+            </select>
+          </FieldLabel>
         </div>
         {scvForm.vehicleType&&vmByType(scvForm.vehicleType)&&<div style={{marginTop:12,padding:"8px 12px",background:"#eef4ff",borderRadius:8,fontSize:11,color:C.primary,border:"1px solid #bfdbfe"}}>
           Vehicle Master defaults for <b>{scvForm.vehicleType}</b>: cap={vmByType(scvForm.vehicleType).cap} · dist={vmByType(scvForm.vehicleType).dist} km · tp={vmByType(scvForm.vehicleType).tp} · local={vmByType(scvForm.vehicleType).tpLocal} · non-local={vmByType(scvForm.vehicleType).tpNonLocal}
@@ -1547,9 +1827,7 @@ function NodeVehicleMaster() {
           <FieldLabel label="Vehicle Type *"><Input value={vmForm.type} onChange={e=>setVmForm(p=>({...p,type:e.target.value}))}/></FieldLabel>
           <FieldLabel label="Capacity (Shipments)"><Input type="number" value={vmForm.cap} onChange={e=>setVmForm(p=>({...p,cap:e.target.value}))}/></FieldLabel>
           <FieldLabel label="Distance Limit (km)"><Input type="number" value={vmForm.dist} onChange={e=>setVmForm(p=>({...p,dist:e.target.value}))}/></FieldLabel>
-          <FieldLabel label="TP Limit (Hard Cap) *"><Input type="number" value={vmForm.tp} onChange={e=>setVmForm(p=>({...p,tp:e.target.value}))}/></FieldLabel>
-          <FieldLabel label="TP Limit (Local)"><Input type="number" value={vmForm.tpLocal} onChange={e=>setVmForm(p=>({...p,tpLocal:e.target.value}))}/></FieldLabel>
-          <FieldLabel label="TP Limit (Non-Local)"><Input type="number" value={vmForm.tpNonLocal} onChange={e=>setVmForm(p=>({...p,tpNonLocal:e.target.value}))}/></FieldLabel>
+          <FieldLabel label="Touch Point Limit *"><Input type="number" value={vmForm.tp} onChange={e=>setVmForm(p=>({...p,tp:e.target.value}))}/></FieldLabel>
           <FieldLabel label="LH Feasibility">
             <div style={{display:"flex",gap:6,flexWrap:"wrap",paddingTop:4}}>
               {["FM Carting","NLH","RLH"].map(f=>{const has=vmForm.feas.includes(f);return <button key={f} onClick={()=>setVmForm(p=>({...p,feas:has?p.feas.filter(x=>x!==f):[...p.feas,f]}))} style={{padding:"4px 12px",fontSize:11,fontWeight:600,borderRadius:99,border:`1.5px solid ${has?C.primary:C.border}`,background:has?C.primaryLight:"#fff",color:has?C.primary:C.muted,cursor:"pointer"}}>{f}</button>;})}
@@ -1558,7 +1836,7 @@ function NodeVehicleMaster() {
         </div>
         <div style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:14}}>
           <Btn variant="ghost" onClick={()=>setVmModal(false)}>Cancel</Btn>
-          <Btn disabled={!vmForm.type||!vmForm.tp} onClick={()=>{setVmData(p=>[...p,{type:vmForm.type,cap:+vmForm.cap||0,dist:+vmForm.dist||0,tp:+vmForm.tp,tpLocal:+vmForm.tpLocal||+vmForm.tp,tpNonLocal:+vmForm.tpNonLocal||+vmForm.tp,feas:vmForm.feas}]);setVmModal(false);}}>Add Vehicle Type</Btn>
+          <Btn disabled={!vmForm.type||!vmForm.tp} onClick={()=>{setVmData(p=>[...p,{type:vmForm.type,cap:+vmForm.cap||0,dist:+vmForm.dist||0,tp:+vmForm.tp,feas:vmForm.feas}]);setVmModal(false);}}>Add Vehicle Type</Btn>
         </div>
       </Modal>
     </div>
@@ -1586,17 +1864,26 @@ const TP_LIMITS = {"Tata Ace":8,"Bolero":10,"14ft":6,"17ft":5,"19ft":4,"22ft":3,
 const LMDC_LANDING_FILES = ["LMDC Landing (Apr 2026)","LMDC Landing (Mar 2026)","LMDC Landing (Q1 2026)"];
 
 // ─── LMDC Landing schema (from template: _Template__LMDC_Landing.xlsx) ────
-const LMDC_LANDING_SCHEMA = {
-  columns: [
+// ─── Volume upload schema factory ────────────────────────────────────────────
+// All 4 volume cards share the same structure:
+//   Col 1: <Entity> Code  — Mandatory, alphanumeric, 3–6 chars
+//   Col 2: Planned Volume — Mandatory, number, > 0
+// Sources:
+//   _Template__FM_Hub_Manifestation.xlsx  → FM Hub Code
+//   _Template__FMSC_Manifestation.xlsx    → FMSC Code
+//   _Template__LMSC_Landing.xlsx          → LMSC Code
+//   _Template__LMDC_Landing.xlsx          → LMDC Code
+function makeVolumeSchema({ codeLabel, codeKey, exampleCode, filename }) {
+  const columns = [
     {
-      name: "LMDC Code",
-      key:  "lmdc code",
+      name: codeLabel,
+      key:  codeKey,
       mandatory: true,
       format: "alphanumeric",
       rule: v => {
-        if (!v || !v.trim()) return "LMDC Code is mandatory";
-        if (!/^[a-zA-Z0-9_-]+$/.test(v.trim())) return "LMDC Code must be alphanumeric";
-        if (v.trim().length < 3 || v.trim().length > 30) return "LMDC Code must be between 3 and 30 characters";
+        if (!v || !v.trim()) return codeLabel + " is mandatory";
+        if (!/^[a-zA-Z0-9_-]+$/.test(v.trim())) return codeLabel + " must be alphanumeric (letters, numbers, hyphens, underscores)";
+        if (v.trim().length < 3 || v.trim().length > 30) return codeLabel + " must be 3–30 characters";
         return null;
       },
     },
@@ -1612,29 +1899,30 @@ const LMDC_LANDING_SCHEMA = {
         return null;
       },
     },
-  ],
-  downloadTemplate: () => {
+  ];
+
+  const downloadTemplate = () => {
     const rows = [
-      ["Mandatory/Optional:", "Mandatory",   "Mandatory"],
-      ["Input Format:",       "alphanumeric","number"],
-      ["Validation Rule",     "3-30 characters, alphanumeric", "Cannot be <=0"],
-      ["Column Name:",        "LMDC Code",   "Planned Volume"],
-      // example data row
-      ["",                   "LMDC-BLR-001", "1200"],
+      ["Mandatory/Optional:", "Mandatory",    "Mandatory"],
+      ["Input Format:",       "alphanumeric", "number"],
+      ["Validation Rule",     "3-6 characters, alphanumeric", "Cannot be <=0"],
+      ["Column Name:",        codeLabel,      "Planned Volume"],
+      ["",                    exampleCode,    "1200"],
     ];
-    const csv = rows.map(r => r.join(",")).join("\n");
+    const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("
+");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    a.download = "_Template__LMDC_Landing.csv";
+    a.download = filename;
     a.click();
-  },
-  validate: (rows) => {
+  };
+
+  const validate = (rows) => {
     const errors = [], warnings = [];
-    const schema = LMDC_LANDING_SCHEMA.columns;
     const seenCodes = {};
     rows.forEach((row, i) => {
-      const rowNum = i + 2; // +2 because row 1 is header
-      schema.forEach(col => {
+      const rowNum = i + 2;
+      columns.forEach(col => {
         const val = row[col.key];
         const msg = col.rule(val);
         if (msg) {
@@ -1642,16 +1930,49 @@ const LMDC_LANDING_SCHEMA = {
           else               warnings.push({ rowNum, field: col.name, msg });
         }
       });
-      // Duplicate LMDC Code check
-      const code = (row["lmdc code"] || "").trim().toLowerCase();
+      // Duplicate code check
+      const code = (row[codeKey] || "").trim().toLowerCase();
       if (code) {
-        if (seenCodes[code]) errors.push({ rowNum, field: "LMDC Code", msg: `Duplicate LMDC Code: ${row["lmdc code"]}` });
+        if (seenCodes[code]) errors.push({ rowNum, field: codeLabel, msg: "Duplicate " + codeLabel + ": " + row[codeKey] });
         seenCodes[code] = true;
       }
     });
     return { errors, warnings };
-  },
+  };
+
+  return { columns, downloadTemplate, validate, codeLabel, codeKey };
+}
+
+// ─── Schema instances ─────────────────────────────────────────────────────────
+const VOLUME_SCHEMAS = {
+  fmHub: makeVolumeSchema({
+    codeLabel: "FM Hub Code",
+    codeKey:   "fm hub code",
+    exampleCode: "FMH-DEL-01",
+    filename:  "_Template__FM_Hub_Manifestation.csv",
+  }),
+  fmsc: makeVolumeSchema({
+    codeLabel: "FMSC Code",
+    codeKey:   "fmsc code",
+    exampleCode: "FMSC-BLR-01",
+    filename:  "_Template__FMSC_Manifestation.csv",
+  }),
+  lmsc: makeVolumeSchema({
+    codeLabel: "LMSC Code",
+    codeKey:   "lmsc code",
+    exampleCode: "LMSC-BLR-01",
+    filename:  "_Template__LMSC_Landing.csv",
+  }),
+  lmdc: makeVolumeSchema({
+    codeLabel: "LMDC Code",
+    codeKey:   "lmdc code",
+    exampleCode: "LMDC-BLR-001",
+    filename:  "_Template__LMDC_Landing.csv",
+  }),
 };
+
+// Keep backward-compat alias used elsewhere in codebase
+const LMDC_LANDING_SCHEMA = VOLUME_SCHEMAS.lmdc;
 
 function RLHPlanning({ setPage, addDesign }) {
   const [step, setStep]               = useState(1);
