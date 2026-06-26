@@ -1909,8 +1909,7 @@ function makeVolumeSchema({ codeLabel, codeKey, exampleCode, filename }) {
       ["Column Name:",        codeLabel,      "Planned Volume"],
       ["",                    exampleCode,    "1200"],
     ];
-    const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("
-");
+    const csv = rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
     a.download = filename;
