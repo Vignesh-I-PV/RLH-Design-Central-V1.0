@@ -1,25 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-  <title>Network Design — Operations Module</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-    #root{height:100vh}
-    #loading{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;gap:14px;color:#6b7280;font-size:14px}
-    .spinner{width:36px;height:36px;border:3px solid #e5e9f0;border-top-color:#2d6af6;border-radius:50%;animation:spin .8s linear infinite}
-    @keyframes spin{to{transform:rotate(360deg)}}
-  </style>
-</head>
-<body>
-  <div id="loading"><div class="spinner"></div><span>Loading…</span></div>
-  <div id="root" style="display:none"></div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
-  <script type="text/babel" data-presets="react">
 const { useState, useCallback, useMemo, useEffect, useRef, createContext, useContext } = React;
 const ReactDOM = window.ReactDOM;
 
@@ -3775,6 +3753,3 @@ function App() {
     ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
     document.getElementById('loading').style.display = 'none';
     document.getElementById('root').style.display = '';
-  </script>
-</body>
-</html>
