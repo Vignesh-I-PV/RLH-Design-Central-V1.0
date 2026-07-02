@@ -739,7 +739,7 @@ function LmdcLandingUploadCard({ onSubmit }) {
 }
 
 // ─── Design Inputs ────────────────────────────────────────────────────────
-function DesignInputs({ sub, setPage }) {
+function DesignInputs({ sub, setPage, vmData, setVmData, scvData, setScvData }) {
   const active=["volume-inputs","node-master","node-vehicle-master","design-ingestion"].includes(sub)?sub:"volume-inputs";
 
   // Upload history: keyed by card label, last 5 entries each
@@ -793,7 +793,7 @@ function DesignInputs({ sub, setPage }) {
       </div>}
 
       {active==="node-master"&&<NodeInputs/>}
-      {active==="node-vehicle-master"&&<NodeVehicleMaster/>}
+      {active==="node-vehicle-master"&&<NodeVehicleMaster vmData={vmData} setVmData={setVmData} scvData={scvData} setScvData={setScvData}/>}
 
       {active==="design-ingestion"&&<div>
         <UploadCard label="A. FM Carting Plan" desc="Upload FM Carting plan CSV." cols={["fmh_code *","fmsc_code *","vehicle_type *","vehicle_count *"]}
@@ -1343,13 +1343,23 @@ const SCV_SEED = [
   {scCode:"LMSC-DEL-01",vehicleType:"10FT Trailer", cap:120, dist:200, count:3, tpLimit:7,  zoneFeas:"Local"},
 ];
 
-function NodeVehicleMaster() {
+// ─── Capacity resolution helper ──────────────────────────────────────────────
+// Single source of truth for all utilisation calculations.
+// Priority: SCV record for (lmscCode, vehicleType) → VM default
+function resolveCapacity(lmscCode, vehicleType, scvData, vmData) {
+  const scvRow = (scvData || []).find(
+    r => r.scCode === lmscCode && r.vehicleType === vehicleType
+  );
+  if (scvRow && scvRow.cap != null && scvRow.cap > 0) return scvRow.cap;
+  const vmRow = (vmData || []).find(r => r.type === vehicleType);
+  return vmRow?.cap ?? 0;
+}
+
+function NodeVehicleMaster({ vmData, setVmData, scvData, setScvData }) {
   const [tab, setTab] = useState("sc");
 
   // ── SC Master state ──────────────────────────────────────────────────────
   const [scMaster, setScMaster] = useState(SC_MASTER_SEED);
-  const [scvData,  setScvData]  = useState(SCV_SEED);
-  const [vmData,   setVmData]   = useState(VM_SEED);
 
   // SC Master modals
   const [scModal,     setScModal]     = useState(null);  // null | "add" | sc record (edit)
@@ -1844,14 +1854,14 @@ function NodeVehicleMaster() {
 }
 
 // ─── Design Creation ──────────────────────────────────────────────────────
-function DesignCreation({ sub, setPage, addDesign }) {
+function DesignCreation({ sub, setPage, addDesign, vmData, scvData }) {
   const active=["route-planning","mapping"].includes(sub)?sub:"route-planning";
   return (
     <div style={{padding:"28px 32px",maxWidth:1100}}>
       <Breadcrumb items={[{label:"Dashboard",page:"dashboard"},{label:"Design Creation"}]} setPage={setPage}/>
       <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:800}}>Design Creation</h1><p style={{color:C.muted,marginTop:4,fontSize:13}}>Build RLH route plans, node mapping, and visualise the network.</p></div>
       <Tabs tabs={[{key:"route-planning",label:"Route Planning"},{key:"mapping",label:"Mapping"}]} active={active} onChange={k=>setPage(`design-creation/${k}`)}/>
-      {active==="route-planning"&&<RLHPlanning setPage={setPage} addDesign={addDesign}/>}
+      {active==="route-planning"&&<RLHPlanning setPage={setPage} addDesign={addDesign} vmData={vmData} scvData={scvData}/>}
       {active==="mapping"&&<Card style={{padding:"40px 24px",textAlign:"center",borderStyle:"dashed"}}><div style={{fontSize:28,marginBottom:8}}>🚧</div><div style={{fontWeight:700,fontSize:14,marginBottom:4}}>SC-DC Mapping</div><div style={{fontSize:12,color:C.muted}}>Mapping algorithm configuration — coming soon.</div></Card>}
     </div>
   );
@@ -1973,7 +1983,23 @@ const VOLUME_SCHEMAS = {
 // Keep backward-compat alias used elsewhere in codebase
 const LMDC_LANDING_SCHEMA = VOLUME_SCHEMAS.lmdc;
 
-function RLHPlanning({ setPage, addDesign }) {
+function RLHPlanning({ setPage, addDesign, vmData, scvData }) {
+  // Resolve SCV-aware vehicle list for a given SC
+  const scvVehiclesForSc = sc => {
+    const scvRows = (scvData || []).filter(r => r.scCode === sc);
+    if (scvRows.length > 0) return scvRows.map(r => ({
+      type:      r.vehicleType,
+      count:     r.count,
+      maxTp:     r.tpLimit,
+      serveType: r.zoneFeas || "Both",
+      cap:       resolveCapacity(sc, r.vehicleType, scvData, vmData),
+    }));
+    // fallback: all VM types
+    return (vmData || []).map(v => ({
+      type: v.type, count: 1, maxTp: v.tp, serveType: "Both",
+      cap: resolveCapacity(sc, v.type, scvData, vmData),
+    }));
+  };
   const [step, setStep]               = useState(1);
   const [selScs, setSelScs]           = useState([]);
   const [volumeFile, setVolumeFile]   = useState("");
@@ -2028,7 +2054,7 @@ function RLHPlanning({ setPage, addDesign }) {
     return flags;
   };
 
-  const scVehicles = sc => vehiclesBySc[sc] || [{type:"17ft",count:4,maxTp:5,serveType:"Both"},{type:"Bolero",count:2,maxTp:10,serveType:"Both"}];
+  const scVehicles = sc => vehiclesBySc[sc] || scvVehiclesForSc(sc);
 
   const addVehicle = sc => {
     const tpLimit = TP_LIMITS[vehForm.type] || 5;
@@ -2330,8 +2356,13 @@ function RLHPlanning({ setPage, addDesign }) {
             </div>
             {addVehSc===sc&&<div style={{padding:"12px 16px",background:"#eef4ff",borderBottom:`1px solid ${C.border}`,display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr auto",gap:8,alignItems:"end"}}>
               <FieldLabel label="Vehicle Type">
-                <select value={vehForm.type} onChange={e=>setVehForm(p=>({...p,type:e.target.value,maxTp:String(TP_LIMITS[e.target.value]||5)}))} style={{width:"100%",padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:13,outline:"none"}}>
-                  {VEHICLE_TYPES.map(v=><option key={v} value={v}>{v}</option>)}
+                <select value={vehForm.type} onChange={e=>{
+                  const scvRow = (scvData||[]).find(r=>r.scCode===addVehSc&&r.vehicleType===e.target.value);
+                  const vmRow  = (vmData||[]).find(v=>v.type===e.target.value);
+                  const tpMax  = scvRow?.tpLimit ?? vmRow?.tp ?? 5;
+                  setVehForm(p=>({...p,type:e.target.value,maxTp:String(tpMax)}));
+                }} style={{width:"100%",padding:"7px 10px",border:`1px solid ${C.border}`,borderRadius:7,fontSize:13,outline:"none"}}>
+                  {(scvVehiclesForSc(addVehSc||selScs[0]||"")).map(v=><option key={v.type} value={v.type}>{v.type} (cap: {v.cap})</option>)}
                 </select>
               </FieldLabel>
               <FieldLabel label="Count *"><Input type="number" value={vehForm.count} onChange={e=>setVehForm(p=>({...p,count:e.target.value}))}/></FieldLabel>
@@ -2684,204 +2715,287 @@ function PlanCardMetrics({ coveragePct, m, vehicleStr }) {
 }
 
 // ─── Single plan card ─────────────────────────────────────────────────────
-function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
-  const [expanded, setExpanded] = useState(false);
-  const [pushing, setPushing] = useState(false);
+function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId, vmData, scvData }) {
+  const [viewMode,  setViewMode]  = useState("details"); // "details" | "route"
+  const [pushing,   setPushing]   = useState(false);
 
-  const { planWarnings, rowFlags, hasWarnings, coveragePct } = useMemo(() => validateRLHPlan(plan), [plan]);
-
+  const { planWarnings, rowFlags, hasWarnings, coveragePct } = useMemo(
+    () => validateRLHPlan(plan), [plan]
+  );
   const getRowFlags = rowId => rowFlags.find(r => r.rowId === rowId)?.flags || [];
 
-  // Metrics
-  const m = plan.metrics || {};
-  const vehicleStr = Object.entries(m.vehicleBreakdown || {}).map(([t,n])=>`${t}: ${n}`).join(" · ") || "—";
+  // ── Compute route-level pivot from detail rows ────────────────────────────
+  // Detail row fields (from DS Output schema):
+  //   lmsc_location, lm_location, design_volume, route_code, touch_point,
+  //   Zone, out_cutoff, tat, in_cutoff, vehicle_type, round_trip_distance
+  const detailRows = plan.rows || [];
 
-  // Coverage colour
-  const covColor = coveragePct === 100 ? C.accent : C.danger;
-  const covBg    = coveragePct === 100 ? C.accentLight : C.dangerLight;
+  const routeView = useMemo(() => {
+    const map = {};
+    detailRows.forEach(r => {
+      const rc = r.route_code || r.routeCode || r.segment || r.rowId;
+      if (!map[rc]) map[rc] = { route_code: rc, nodes: [], vehicle_type: r.vehicle_type || r.vehicleType || "—", round_trip_distance: r.round_trip_distance || r.routeDistanceKm || 0 };
+      map[rc].nodes.push(r);
+    });
+    return Object.values(map).map(rt => {
+      const totalVol = rt.nodes.reduce((a, n) => a + (n.design_volume || n.designVolume || 0), 0);
+      const cap      = resolveCapacity(plan.scId, rt.vehicle_type, scvData, vmData);
+      const util     = cap > 0 ? Math.round((totalVol / cap) * 100) : 0;
+      return {
+        route_code:           rt.route_code,
+        count_of_nodes:       rt.nodes.length,
+        total_route_volume:   totalVol,
+        total_route_distance: rt.round_trip_distance,
+        vehicle_type:         rt.vehicle_type,
+        vehicle_capacity:     cap,
+        utilisation:          util,
+      };
+    });
+  }, [detailRows, scvData, vmData, plan.scId]);
 
-  // Util colour
-  const utilColor = m.utilPct >= 40 && m.utilPct <= 90 ? C.accent : C.warning;
+  // ── Plan-level metrics (computed from route view) ─────────────────────────
+  const planMetrics = useMemo(() => {
+    const totalVol  = routeView.reduce((a, r) => a + r.total_route_volume, 0);
+    const totalDist = routeView.reduce((a, r) => a + r.total_route_distance, 0);
+    const totalCap  = routeView.reduce((a, r) => a + r.vehicle_capacity, 0);
+    const util      = totalCap > 0 ? Math.round((totalVol / totalCap) * 100) : (plan.metrics?.utilPct ?? 0);
+    // Vehicle type breakdown
+    const vtBreak = {};
+    routeView.forEach(r => { vtBreak[r.vehicle_type] = (vtBreak[r.vehicle_type] || 0) + 1; });
+    return { totalVol, totalDist, totalRoutes: routeView.length, util, vtBreak };
+  }, [routeView]);
 
-  // CSV download
-  const downloadCSV = () => {
-    const headers = ["LMSC Code","LMDC Code","Segment","Vehicle Type","Vehicle Count","Trip Frequency","Transit Hours","Distance (km)","CPS (₹)","Touch Points","Utilisation (%)"];
-    const rows = (plan.rows||[]).map(r => [r.lmscCode,r.lmdcCode,r.segment,r.vehicleType,r.vehicleCount,r.tripFrequency,r.transitHours,r.routeDistanceKm,r.cps,r.tp,r.utilPct]);
-    const csv = [headers,...rows].map(r=>r.join(",")).join("\n");
+  // ── CSV downloads ─────────────────────────────────────────────────────────
+  const downloadDetailsCSV = () => {
+    const headers = ["LMSC","LMDC","Lat","Lng","Design Volume","Route Code","Touch Point","Zone","Out Cutoff","TAT (hrs)","In Cutoff","Vehicle Type","Round Trip Dist (km)","Run ID"];
+    const rows = detailRows.map(r => [
+      r.lmsc_location||r.lmscCode||plan.scId,
+      r.lm_location||r.lmdcCode||"—",
+      r.lm_latitude||"",
+      r.lm_longitude||"",
+      r.design_volume||r.designVolume||0,
+      r.route_code||r.routeCode||r.segment||"",
+      r.touch_point||r.tp||"",
+      r.Zone||r.zone||"",
+      r.out_cutoff||"",
+      r.tat||r.transitHours||"",
+      r.in_cutoff||"",
+      r.vehicle_type||r.vehicleType||"",
+      r.round_trip_distance||r.routeDistanceKm||"",
+      plan.runId||plan.id||"",
+    ]);
+    const csv = [headers,...rows].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(",")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download = `${plan.runId}_plan.csv`;
+    a.download = (plan.runId||plan.id)+"_details.csv";
+    a.click();
+  };
+
+  const downloadRouteCSV = () => {
+    const headers = ["Route Code","Count of Nodes","Total Route Volume","Total Route Distance (km)","Vehicle Type","Vehicle Capacity","Utilisation (%)"];
+    const rows = routeView.map(r=>[r.route_code,r.count_of_nodes,r.total_route_volume,r.total_route_distance,r.vehicle_type,r.vehicle_capacity,r.utilisation]);
+    const csv = [headers,...rows].map(r=>r.map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(",")).join("\n");
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    a.download = (plan.runId||plan.id)+"_route_view.csv";
     a.click();
   };
 
   const handlePush = reviewers => {
     const al = {
-      id: `ga-${plan.id}-${Date.now()}`,
+      id: "ga-"+plan.id+"-"+Date.now(),
       designName: plan.name, designType: plan.type, zone: plan.zone, scId: plan.scId,
       pushedBy: "Current User", pushedOn: new Date().toISOString().split("T")[0],
       status: "Pending", acknowledged: false, finalisedOn: null,
       sendBackCount: 0, versionLog: [], sendBackNote: null,
-      approvers: reviewers.map(r => ({ name: r.name, role: r.role, email: r.email, submitted: false })),
-      rows: (plan.rows||[]).map(r => ({
-        rowId: r.rowId, segment: r.segment, lmdcCode: r.lmdcCode,
-        vehicleType: r.vehicleType, vehicleCount: r.vehicleCount,
-        tripFrequency: r.tripFrequency, transitHours: r.transitHours,
-        routeDistanceKm: r.routeDistanceKm, cps: r.cps,
+      approvers: reviewers.map(r => ({ name:r.name, role:r.role, email:r.email, submitted:false })),
+      rows: detailRows.map(r => ({
+        rowId: r.rowId||r.route_code,
+        segment: r.route_code||r.segment,
+        lmdcCode: r.lm_location||r.lmdcCode,
+        vehicleType: r.vehicle_type||r.vehicleType,
+        vehicleCount: r.vehicleCount||1,
+        tripFrequency: r.tripFrequency||"Daily",
+        transitHours: r.tat||r.transitHours,
+        routeDistanceKm: r.round_trip_distance||r.routeDistanceKm,
+        cps: r.cps||0,
       })),
       rowFeedback: [], plannerDecisions: {},
-      hasWarnings,
+      hasWarnings, planMetrics, routeView,
     };
     setAlignments(p => [al, ...p]);
-    setDesigns(p => p.map(x => x.id === plan.id ? { ...x, pushed: true, acceptedWithWarnings: hasWarnings } : x));
+    setDesigns(p => p.map(x => x.id === plan.id ? {...x, pushed:true, acceptedWithWarnings:hasWarnings} : x));
     setPushing(false);
     setPage("sanctity-controls/operations-alignment");
   };
 
-  // Flag chip helper
-  const FlagChip = ({ icon, label, color, bg }) => (
-    <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 9px", borderRadius:99, fontSize:10, fontWeight:700, background:bg, color, whiteSpace:"nowrap" }}>
-      {icon} {label}
-    </span>
-  );
+  const utilColor = u => u >= 80 ? C.danger : u >= 60 ? C.warning : C.accent;
+  const utilBg    = u => u >= 80 ? C.dangerLight : u >= 60 ? C.warningLight : C.accentLight;
+  const utilFg    = u => u >= 80 ? C.danger : u >= 60 ? "#92400e" : "#065f46";
 
   return (
-    <div style={{ border:`1.5px solid ${hasWarnings&&!plan.pushed?C.warning:plan.pushed?C.accent:C.border}`, borderRadius:12, background:"#fff", marginBottom:14, overflow:"hidden", transition:"border-color .2s" }}>
+    <div style={{border:"1.5px solid "+(hasWarnings&&!plan.pushed?C.warning:plan.pushed?C.accent:C.border),borderRadius:12,background:"#fff",marginBottom:14,overflow:"hidden"}}>
 
       {/* ── Card header ── */}
-      <div style={{ padding:"14px 18px", background: plan.pushed?"#f0fdf4":hasWarnings?"#fffbeb":"#fff", borderBottom:`1px solid ${C.border}` }}>
-        <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
-          <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
-              <span style={{ fontWeight:800, fontSize:14, color:"#1a2233" }}>{plan.name}</span>
-              <span style={{ fontFamily:"monospace", fontSize:10, color:C.muted, background:"#f3f5f9", padding:"1px 7px", borderRadius:4 }}>{plan.runId}</span>
-              {plan.pushed && <Badge small color="success">📤 Pushed to Alignment{plan.acceptedWithWarnings?" (with warnings)":""}</Badge>}
+      <div style={{padding:"14px 18px",background:plan.pushed?"#f0fdf4":hasWarnings?"#fffbeb":"#fff",borderBottom:"1px solid "+C.border}}>
+        <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginBottom:4}}>
+              <span style={{fontWeight:800,fontSize:14,color:"#1a2233"}}>{plan.name}</span>
+              <span style={{fontFamily:"monospace",fontSize:10,color:C.muted,background:"#f3f5f9",padding:"1px 7px",borderRadius:4}}>{plan.runId}</span>
+              {plan.pushed&&<Badge small color="success">📤 Pushed to Alignment{plan.acceptedWithWarnings?" (with warnings)":""}</Badge>}
             </div>
-            <div style={{ display:"flex", gap:6, flexWrap:"wrap", alignItems:"center" }}>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
               <Badge small>{plan.type}</Badge>
               <Badge small color="default">{plan.zone}</Badge>
-              {plan.scId && <Badge small color="primary">{plan.scId}</Badge>}
-              <span style={{ fontSize:11, color:C.muted }}>Triggered {plan.triggeredOn} · {plan.triggeredBy}</span>
+              {plan.scId&&<Badge small color="primary">{plan.scId}</Badge>}
+              <span style={{fontSize:11,color:C.muted}}>Triggered {plan.triggeredOn} · {plan.triggeredBy}</span>
             </div>
           </div>
-          {/* Actions */}
-          <div style={{ display:"flex", gap:8, flexShrink:0, flexWrap:"wrap" }}>
-            <button onClick={() => { if(setMapPlanId) setMapPlanId(plan.id); setPage("sanctity-controls/visualisation"); }}
-              title="View on Map"
-              style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 12px", fontSize:11, fontWeight:600, borderRadius:7, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, cursor:"pointer" }}>
+          <div style={{display:"flex",gap:8,flexShrink:0,flexWrap:"wrap"}}>
+            <button onClick={()=>{if(setMapPlanId)setMapPlanId(plan.id);setPage("sanctity-controls/visualisation");}}
+              style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",fontSize:11,fontWeight:600,borderRadius:7,border:"1px solid "+C.border,background:"#fff",color:C.muted,cursor:"pointer"}}>
               🗺️ Map
             </button>
-            <button onClick={downloadCSV}
-              style={{ display:"inline-flex", alignItems:"center", gap:5, padding:"5px 12px", fontSize:11, fontWeight:600, borderRadius:7, border:`1px solid ${C.border}`, background:"#fff", color:C.muted, cursor:"pointer" }}>
+            <button onClick={viewMode==="route"?downloadRouteCSV:downloadDetailsCSV}
+              style={{display:"inline-flex",alignItems:"center",gap:5,padding:"5px 12px",fontSize:11,fontWeight:600,borderRadius:7,border:"1px solid "+C.border,background:"#fff",color:C.muted,cursor:"pointer"}}>
               ⬇ CSV
             </button>
-            {!plan.pushed && (
-              <Btn onClick={() => setPushing(true)}>
-                {hasWarnings ? "⚠ Accept & Push" : " Push to Alignment"}
-              </Btn>
-            )}
+            {!plan.pushed&&<Btn onClick={()=>setPushing(true)}>{hasWarnings?"⚠ Accept & Push":"📤 Push to Alignment"}</Btn>}
           </div>
         </div>
-
-        {/* Plan-level warnings */}
-        {planWarnings.length > 0 && (
-          <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10 }}>
-            {planWarnings.map((w,i) => (
-              <FlagChip key={i} icon="⚠️" label={w.msg} color="#92400e" bg={C.warningLight}/>
+        {planWarnings.length>0&&(
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginTop:10}}>
+            {planWarnings.map((w,i)=>(
+              <span key={i} style={{display:"inline-flex",alignItems:"center",gap:4,padding:"2px 9px",borderRadius:99,fontSize:10,fontWeight:700,background:C.warningLight,color:"#92400e",whiteSpace:"nowrap"}}>⚠️ {w.msg}</span>
             ))}
           </div>
         )}
       </div>
 
-      {/* ── 3 headline metrics + expandable ── */}
-      <PlanCardMetrics coveragePct={coveragePct} m={m} vehicleStr={vehicleStr}/>
+      {/* ── Plan-level metrics strip ── */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",borderBottom:"1px solid "+C.border}}>
+        {[
+          ["Routes",       planMetrics.totalRoutes],
+          ["Total Volume", planMetrics.totalVol.toLocaleString()],
+          ["Total Distance",planMetrics.totalDist.toFixed(1)+" km"],
+          ["Utilisation",  planMetrics.util+"%"],
+          ["Coverage",     coveragePct+"%"],
+        ].map(([label,value],i)=>(
+          <div key={label} style={{padding:"10px 14px",borderRight:i<4?"1px solid "+C.border:"none"}}>
+            <div style={{fontSize:15,fontWeight:700,color:label==="Utilisation"?utilColor(planMetrics.util):label==="Coverage"&&coveragePct<100?C.danger:"#1a2233"}}>{value}</div>
+            <div style={{fontSize:10,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+          </div>
+        ))}
+      </div>
 
-      {/* ── Expand toggle ── */}
-      <button onClick={() => setExpanded(e => !e)}
-        style={{ width:"100%", padding:"8px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", border:"none", background:"#fafafa", cursor:"pointer", fontSize:12, fontWeight:600, color:C.primary, borderBottom: expanded?`1px solid ${C.border}`:"none" }}>
-        <span>📋 Route Details — {(plan.rows||[]).length} routes{hasWarnings ? ` · ⚠ ${rowFlags.reduce((a,r)=>a+r.flags.length,0) + planWarnings.length} validation flag${rowFlags.reduce((a,r)=>a+r.flags.length,0)+planWarnings.length!==1?"s":""}` : ""}</span>
-        <span style={{ fontSize:14, color:C.muted }}>{expanded ? "▲ Collapse" : "▼ Expand"}</span>
-      </button>
+      {/* ── View toggle: Details / Route View ── */}
+      <div style={{display:"flex",gap:0,borderBottom:"1px solid "+C.border,background:"#fafafa"}}>
+        {[["details","📋 Details View"],["route","🔀 Route View"]].map(([key,label])=>(
+          <button key={key} onClick={()=>setViewMode(key)}
+            style={{padding:"8px 18px",fontSize:12,fontWeight:600,border:"none",background:"none",
+              color:viewMode===key?C.primary:C.muted,
+              borderBottom:viewMode===key?"2px solid "+C.primary:"2px solid transparent",
+              marginBottom:-1,cursor:"pointer"}}>
+            {label}
+          </button>
+        ))}
+        <span style={{marginLeft:"auto",padding:"8px 14px",fontSize:11,color:C.muted}}>
+          {viewMode==="details"
+            ? detailRows.length+" DC rows"
+            : routeView.length+" routes"}
+        </span>
+      </div>
 
-      {/* ── Route table ── */}
-      {expanded && (
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+      {/* ══ DETAILS VIEW ══ */}
+      {viewMode==="details"&&(
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
             <thead>
               <tr>
-                {["LMDC","Segment","Vehicle Type","Count","Frequency","Dist (km)","TAT (hrs)","CPS (₹)","TPs","Util %","Flags"].map((h,i) => (
-                  <th key={i} style={{ padding:"7px 10px", background:"#f8fafc", borderBottom:`1px solid ${C.border}`, fontSize:10, fontWeight:700, color:C.muted, textTransform:"uppercase", letterSpacing:.4, textAlign:i>2?"right":"left", whiteSpace:"nowrap" }}>{h}</th>
+                {["LMSC","LMDC","Design Volume","Route Code","Touch Point","Zone","Out Cutoff","TAT (hrs)","In Cutoff","Vehicle Type","Rt. Distance (km)","Flags"].map((h,i)=>(
+                  <th key={i} style={{padding:"7px 10px",background:"#f8fafc",borderBottom:"1px solid "+C.border,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:i>1&&i<9?"right":"left",whiteSpace:"nowrap"}}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {(plan.rows||[]).map(row => {
-                const flags = getRowFlags(row.rowId);
-                const hasFlag = flags.length > 0;
-                const tpFlag   = flags.find(f=>f.code==="TP");
-                const utilHigh = flags.find(f=>f.code==="UTIL_HIGH");
-                const utilLow  = flags.find(f=>f.code==="UTIL_LOW");
-                const rowBg    = hasFlag ? (tpFlag ? "#fff5f5" : "#fffbeb") : "#fff";
-                const lmdc = LMDC_MAP[row.lmdcCode];
+              {detailRows.map((row,ri)=>{
+                const flags = getRowFlags(row.rowId||String(ri));
+                const tpFlag = flags.find(f=>f.code==="TP");
+                const rowBg = flags.length>0?(tpFlag?"#fff5f5":"#fffbeb"):"#fff";
                 return (
-                  <tr key={row.rowId} style={{ background: rowBg }}>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11 }}>
-                      <div style={{ fontFamily:"monospace", fontSize:10, fontWeight:600 }}>{row.lmdcCode||"—"}</div>
-                      <div style={{ fontSize:10, color:C.muted }}>{lmdc?.lmdcName||""}</div>
+                  <tr key={ri} style={{background:rowBg}}>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:10,fontWeight:600}}>{row.lmsc_location||row.lmscCode||plan.scId}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:10}}>{row.lm_location||row.lmdcCode||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right",fontWeight:600}}>{(row.design_volume||row.designVolume||0).toLocaleString()}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:600,color:C.primary}}>{row.route_code||row.routeCode||row.segment||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{row.touch_point||row.tp||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11}}>
+                      <span style={{padding:"1px 7px",borderRadius:99,fontSize:10,fontWeight:600,background:row.Zone==="Local"||row.zone==="Local"?"#e0e7ff":"#f3f5f9",color:row.Zone==="Local"||row.zone==="Local"?"#3730a3":"#374151"}}>{row.Zone||row.zone||"—"}</span>
                     </td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, fontWeight:500, minWidth:180 }}>{row.segment}</td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11 }}>{row.vehicleType}</td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, textAlign:"right" }}>{row.vehicleCount}</td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, textAlign:"right" }}>{row.tripFrequency}</td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, textAlign:"right" }}>{row.routeDistanceKm}</td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, textAlign:"right" }}>{row.transitHours}</td>
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:12, textAlign:"right", fontWeight:700 }}>₹{row.cps}</td>
-                    {/* TPs */}
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, textAlign:"right", color:tpFlag?C.danger:"inherit", fontWeight:tpFlag?700:"normal" }}>
-                      {row.tp}
-                      {tpFlag && <span title={tpFlag.msg} style={{ marginLeft:4, cursor:"help" }}>🔴</span>}
-                    </td>
-                    {/* Util */}
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, fontSize:11, textAlign:"right" }}>
-                      <span style={{ padding:"1px 7px", borderRadius:99, fontSize:10, fontWeight:700,
-                        background: utilHigh?C.dangerLight : utilLow?C.warningLight : C.accentLight,
-                        color:       utilHigh?C.danger      : utilLow?"#92400e"     : "#065f46" }}>
-                        {row.utilPct}%
-                      </span>
-                      {(utilHigh||utilLow) && <span title={(utilHigh||utilLow).msg} style={{ marginLeft:4, cursor:"help" }}>⚠️</span>}
-                    </td>
-                    {/* Flags */}
-                    <td style={{ padding:"8px 10px", borderBottom:`1px solid ${C.border}`, minWidth:160 }}>
-                      {flags.length === 0
-                        ? <span style={{ fontSize:11, color:C.accent }}>✓ Clean</span>
-                        : <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
-                            {flags.map((f,fi) => (
-                              <span key={fi} style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"1px 7px", borderRadius:99, fontSize:9, fontWeight:700,
-                                background: f.code==="TP"||f.code==="UTIL_HIGH" ? C.dangerLight : C.warningLight,
-                                color:       f.code==="TP"||f.code==="UTIL_HIGH" ? C.danger      : "#92400e",
-                                whiteSpace:"nowrap" }}>
-                                {f.code==="TP"?"⛔ TP":f.code==="UTIL_HIGH"?"🔴 Over-loaded":"⚠️ Under-utilised"}
-                              </span>
-                            ))}
-                          </div>}
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right",color:C.muted}}>{row.out_cutoff||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{row.tat||row.transitHours||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right",color:C.muted}}>{row.in_cutoff||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11}}>{row.vehicle_type||row.vehicleType||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{row.round_trip_distance||row.routeDistanceKm||"—"}</td>
+                    <td style={{padding:"7px 10px",borderBottom:"1px solid "+C.border}}>
+                      {flags.length===0
+                        ? <span style={{fontSize:11,color:C.accent}}>✓</span>
+                        : flags.map((f,fi)=>(
+                            <span key={fi} style={{display:"inline-flex",alignItems:"center",gap:3,padding:"1px 7px",borderRadius:99,fontSize:9,fontWeight:700,background:f.code==="TP"?C.dangerLight:C.warningLight,color:f.code==="TP"?C.danger:"#92400e",whiteSpace:"nowrap",marginRight:2}}>
+                              {f.code==="TP"?"⛔ TP":f.code==="UTIL_HIGH"?"🔴 High":"⚠ Low"}
+                            </span>
+                          ))}
                     </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
-          {/* Table footer actions */}
-          <div style={{ padding:"8px 14px", background:"#f8fafc", borderTop:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-            <span style={{ fontSize:11, color:C.muted }}>{(plan.rows||[]).length} routes · {plan.scId}</span>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={() => { if(setMapPlanId) setMapPlanId(plan.id); setPage("sanctity-controls/visualisation"); }}
-                style={{ fontSize:11, color:C.muted, background:"none", border:"none", cursor:"pointer" }}>
-                Open in Map
-              </button>
-              <button onClick={downloadCSV}
-                style={{ fontSize:11, color:C.muted, background:"none", border:"none", cursor:"pointer" }}>
-                Download CSV
-              </button>
+          <div style={{padding:"8px 14px",background:"#f8fafc",borderTop:"1px solid "+C.border,display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+            <span style={{fontSize:11,color:C.muted}}>{detailRows.length} DC rows · {plan.scId}</span>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{if(setMapPlanId)setMapPlanId(plan.id);setPage("sanctity-controls/visualisation");}} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Open in Map</button>
+              <button onClick={downloadDetailsCSV} style={{fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Download CSV</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ ROUTE VIEW ══ */}
+      {viewMode==="route"&&(
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse"}}>
+            <thead>
+              <tr>
+                {["Route Code","Nodes","Total Volume","Distance (km)","Vehicle Type","Vehicle Capacity","Utilisation"].map((h,i)=>(
+                  <th key={i} style={{padding:"7px 10px",background:"#f8fafc",borderBottom:"1px solid "+C.border,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:i>0?"right":"left",whiteSpace:"nowrap"}}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {routeView.map((rt,ri)=>(
+                <tr key={ri} style={{background:"#fff"}}>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:11,fontWeight:700,color:C.primary}}>{rt.route_code}</td>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{rt.count_of_nodes}</td>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right",fontWeight:600}}>{rt.total_route_volume.toLocaleString()}</td>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{rt.total_route_distance}</td>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11}}>{rt.vehicle_type}</td>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right",color:C.muted}}>{rt.vehicle_capacity.toLocaleString()}</td>
+                  <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,textAlign:"right"}}>
+                    <span style={{padding:"2px 9px",borderRadius:99,fontSize:11,fontWeight:700,background:utilBg(rt.utilisation),color:utilFg(rt.utilisation)}}>{rt.utilisation}%</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {/* Vehicle type breakdown footer */}
+          <div style={{padding:"8px 14px",background:"#f8fafc",borderTop:"1px solid "+C.border,display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+            <span style={{fontSize:11,fontWeight:700,color:C.muted}}>Vehicle breakdown:</span>
+            {Object.entries(planMetrics.vtBreak).map(([vt,count])=>(
+              <span key={vt} style={{fontSize:11,color:"#374151"}}><b>{vt}</b>: {count} route{count!==1?"s":""}</span>
+            ))}
+            <button onClick={downloadRouteCSV} style={{marginLeft:"auto",fontSize:11,color:C.muted,background:"none",border:"none",cursor:"pointer"}}>Download CSV</button>
           </div>
         </div>
       )}
@@ -2892,7 +3006,7 @@ function PlanCard({ plan, setDesigns, setAlignments, setPage, setMapPlanId }) {
 }
 
 // ─── Design Review ────────────────────────────────────────────────────────
-function DesignReview({ designs, setDesigns, setAlignments, setPage, setMapPlanId }) {
+function DesignReview({ designs, setDesigns, setAlignments, setPage, setMapPlanId, vmData, scvData }) {
   const [search, setSearch] = useState("");
 
   const rlhPlans = useMemo(() =>
@@ -2936,11 +3050,59 @@ function DesignReview({ designs, setDesigns, setAlignments, setPage, setMapPlanI
         </div>
       )}
       {rlhPlans.map(plan => (
-        <PlanCard key={plan.id} plan={plan} setDesigns={setDesigns} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId}/>
+        <PlanCard key={plan.id} plan={plan} setDesigns={setDesigns} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId} vmData={vmData} scvData={scvData}/>
       ))}
     </div>
   );
 }
+
+// ─── Shared alignment helpers ────────────────────────────────────────────────
+
+// Build route-view pivot from detail rows, resolving capacity via SCV→VM hierarchy
+function buildRouteView(detailRows, scId, scvData, vmData) {
+  const map = {};
+  (detailRows || []).forEach(r => {
+    const rc = r.route_code || r.routeCode || r.segment || r.rowId || "unknown";
+    const vt = r.vehicle_type || r.vehicleType || "—";
+    if (!map[rc]) map[rc] = {
+      route_code: rc,
+      vehicle_type: vt,
+      round_trip_distance: r.round_trip_distance || r.routeDistanceKm || 0,
+      nodes: [],
+    };
+    map[rc].nodes.push(r);
+  });
+  return Object.values(map).map(rt => {
+    const totalVol = rt.nodes.reduce((a, n) => a + (+(n.design_volume || n.designVolume || 0)), 0);
+    const cap      = resolveCapacity(scId, rt.vehicle_type, scvData, vmData);
+    const util     = cap > 0 ? Math.round((totalVol / cap) * 100) : 0;
+    return {
+      route_code:           rt.route_code,
+      count_of_nodes:       rt.nodes.length,
+      total_route_volume:   totalVol,
+      total_route_distance: rt.round_trip_distance,
+      vehicle_type:         rt.vehicle_type,
+      vehicle_capacity:     cap,
+      utilisation:          util,
+    };
+  });
+}
+
+// Aggregate plan-level metrics from a route view
+function buildPlanMetrics(routeView) {
+  const totalVol    = routeView.reduce((a, r) => a + r.total_route_volume,   0);
+  const totalDist   = routeView.reduce((a, r) => a + r.total_route_distance,  0);
+  const totalCap    = routeView.reduce((a, r) => a + r.vehicle_capacity,      0);
+  const utilisation = totalCap > 0 ? Math.round((totalVol / totalCap) * 100) : 0;
+  const vtBreak     = {};
+  routeView.forEach(r => { vtBreak[r.vehicle_type] = (vtBreak[r.vehicle_type] || 0) + 1; });
+  return { totalVol, totalDist, totalRoutes: routeView.length, utilisation, totalCap, vtBreak };
+}
+
+// Util colour helpers (shared)
+function utilColor(u) { return u >= 80 ? C.danger  : u >= 60 ? C.warning  : C.accent; }
+function utilBg(u)    { return u >= 80 ? C.dangerLight : u >= 60 ? C.warningLight : C.accentLight; }
+function utilFg(u)    { return u >= 80 ? C.danger  : u >= 60 ? "#92400e" : "#065f46"; }
 
 // ─── OpsLead Simulate sub-panels ───────────────────────────────────────────
 function OpsLeadSimPanelOrig({ rows }) {
@@ -2954,7 +3116,7 @@ function OpsLeadSimPanelFb({ rows, planId, getRow }) {
 }
 
 // ─── Ops Lead Alignment — full rebuild ────────────────────────────────────
-function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) {
+function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId, vmData, scvData }) {
   const currentUser = "Ravi Kumar";
 
   // All plans visible to this user
@@ -3216,24 +3378,29 @@ function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) 
                 </div>
               </div>
 
-              {/* 6 metrics */}
-              <div style={{background:"#fff",border:`1px solid ${C.border}`,borderRadius:8,marginBottom:12,overflow:"hidden"}}>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr) auto",borderBottom:showAllM?`1px solid ${C.border}`:"none"}}>
-                  {[["CPS",`₹${m.cps??"—"}`],["Utilisation",`${m.utilPct??"—"}%`],["Routes",m.totalRoutes??"—"],["Vehicles",vSplit||"—"],["Distance",`${(m.totalDistance??0).toLocaleString()} km`],["Total Cost",`₹${(m.totalCost??0).toLocaleString()}`]].map(([label,value],i)=>(
-                    <div key={label} style={{padding:"10px 12px",borderRight:`1px solid ${C.border}`}}>
-                      <div style={{fontSize:14,fontWeight:700,color:"#1a2233"}}>{value}</div>
-                      <div style={{fontSize:9,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+              {/* ── Plan metrics (DS Output schema) ── */}
+              {(()=>{
+                const rv = buildRouteView(plan.rows||[], plan.scId, scvData, vmData);
+                const pm = buildPlanMetrics(rv);
+                return (
+                  <div style={{background:"#fff",border:"1px solid "+C.border,borderRadius:8,marginBottom:12,overflow:"hidden"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)"}}>
+                      {[
+                        ["Routes",    pm.totalRoutes],
+                        ["Volume",    pm.totalVol.toLocaleString()],
+                        ["Distance",  pm.totalDist.toFixed(1)+" km"],
+                        ["Utilisation", pm.utilisation+"%"],
+                        ["Coverage",  (plan.metrics?.coveragePct??100)+"%"],
+                      ].map(([label,value],i)=>(
+                        <div key={label} style={{padding:"10px 12px",borderRight:i<4?"1px solid "+C.border:"none"}}>
+                          <div style={{fontSize:14,fontWeight:700,color:label==="Utilisation"?utilColor(pm.utilisation):"#1a2233"}}>{value}</div>
+                          <div style={{fontSize:9,color:C.muted,marginTop:2,textTransform:"uppercase",letterSpacing:.4}}>{label}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                  <button onClick={()=>setShowMetricsAll(p=>({...p,[plan.id]:!p[plan.id]}))}
-                    style={{padding:"10px 12px",border:"none",background:"none",cursor:"pointer",fontSize:10,color:C.muted}}>{showAllM?"Less":"Detail"}</button>
-                </div>
-                {showAllM&&<div style={{padding:"10px 14px",background:"#f9fafb",fontSize:11,color:C.muted,display:"flex",gap:16}}>
-                  <span>Coverage: <b style={{color:"#1a2233"}}>{m.coveragePct??100}%</b></span>
-                  <span>Triggered: <b style={{color:"#1a2233"}}>{plan.triggeredOn}</b></span>
-                  <span>By: <b style={{color:"#1a2233"}}>{plan.triggeredBy}</b></span>
-                </div>}
-              </div>
+                  </div>
+                );
+              })()}
 
               {/* Row status summary */}
               <div style={{display:"flex",gap:8,marginBottom:10,alignItems:"center"}}>
@@ -3253,7 +3420,7 @@ function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) 
                   <table style={{width:"100%",borderCollapse:"collapse"}}>
                     <thead>
                       <tr style={{background:"#f9fafb"}}>
-                        {["Segment","Vehicle","Count","Dist (km)","CPS","TP","Status","Action"].map((h,i)=>(
+                        {["Route Code","LMDC","TP","Zone","Out Cutoff","TAT","Vehicle Type","Distance","Status","Action"].map((h,i)=>(
                           <th key={i} style={{padding:"7px 10px",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:600,color:C.muted,textTransform:"uppercase",textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
                         ))}
                       </tr>
@@ -3267,12 +3434,14 @@ function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) 
                         return (
                           <>
                           <tr key={r.rowId} style={{background:isNC?"#fffbeb":"#fff", boxShadow:valIssues.some(v=>v.type==="failure")?`inset 3px 0 0 ${C.danger}`:valIssues.length?`inset 3px 0 0 ${C.warning}`:"none"}}>
-                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11,fontWeight:500}}>{r.segment}</td>
-                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.vehicleType}</td>
-                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.vehicleCount}</td>
-                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.routeDistanceKm}</td>
-                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>₹{r.cps}</td>
-                            <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`,fontSize:11}}>{r.tp||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11,fontWeight:600,color:C.primary}}>{r.route_code||r.segment||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontFamily:"monospace",fontSize:10}}>{r.lm_location||r.lmdcCode||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{r.touch_point||r.tp||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11}}>{r.Zone||r.zone||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11,color:C.muted}}>{r.out_cutoff||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{r.tat||r.transitHours||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11}}>{r.vehicle_type||r.vehicleType||"—"}</td>
+                            <td style={{padding:"8px 10px",borderBottom:isNC?"none":"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{r.round_trip_distance||r.routeDistanceKm||"—"}</td>
                             <td style={{padding:"8px 10px",borderBottom:isNC?`none`:`1px solid ${C.border}`}}>
                               <span style={{fontSize:10,color:status==="Aligned"?"#16a34a":status==="Needs Change"?"#b45309":"#9ca3af",fontWeight:500}}>{status}</span>
                             </td>
@@ -3442,112 +3611,284 @@ function OpsLeadAlignment({ alignments, setAlignments, setPage, setMapPlanId }) 
 // ─── Central Planner Alignment ────────────────────────────────────────────
 // MiniMapSVG removed — replaced by standard RouteMapSVG + MapFilterBar + MapLegend everywhere.
 
-function SimulateModal({ plan, open, onClose }) {
-  if(!plan||!open)return null;
-  const rows=plan.rows||[];
-  const fb=plan.rowFeedback||[];
+function SimulateModal({ plan, open, onClose, vmData, scvData }) {
+  if (!plan || !open) return null;
 
-  // Build "feedback rows" — rows adjusted by ops lead suggestions
-  const feedbackRows = rows.map(row => {
-    const fbRow = fb.find(f => f.rowId === row.rowId);
+  // ── Build original detail rows ────────────────────────────────────────────
+  const origRows = plan.rows || [];
+  const fb       = plan.rowFeedback || [];
+
+  // ── Build feedback detail rows (ops lead suggestions applied) ─────────────
+  // Feedback can change route code (split/merge), vehicle type, distance
+  const fbDetailRows = origRows.map(row => {
+    const fbRow  = fb.find(f => f.rowId === row.rowId);
     const changed = fbRow?.decision === "Needs Change";
     return {
       ...row,
-      fbRow, changed,
-      // For the feedback map: override segment label and cps with suggested values
-      vehicleType:   changed ? fbRow.suggestedVehicleType : row.vehicleType,
-      vehicleCount:  changed ? fbRow.suggestedCount       : row.vehicleCount,
-      routeDistanceKm: changed ? fbRow.suggestedDist      : row.routeDistanceKm,
-      cps:           changed ? fbRow.suggestedCps         : row.cps,
+      route_code:           changed && fbRow.suggestedRouteCode ? fbRow.suggestedRouteCode : (row.route_code || row.segment),
+      vehicle_type:         changed && fbRow.suggestedVehicleType ? fbRow.suggestedVehicleType : (row.vehicle_type || row.vehicleType),
+      round_trip_distance:  changed && fbRow.suggestedDist ? fbRow.suggestedDist : (row.round_trip_distance || row.routeDistanceKm || 0),
+      design_volume:        row.design_volume || row.designVolume || 0,
+      _changed: changed,
+      _fbRow: fbRow,
     };
   });
 
-  const cmp=rows.map(row=>{const fbRow=fb.find(f=>f.rowId===row.rowId);const changed=fbRow?.decision==="Needs Change";return{...row,fbRow,changed,sugVehicle:changed?fbRow.suggestedVehicleType:row.vehicleType,sugCount:changed?fbRow.suggestedCount:row.vehicleCount,sugDist:changed?fbRow.suggestedDist:row.routeDistanceKm,sugCps:changed?fbRow.suggestedCps:row.cps};});
-  const orig={vehicles:rows.reduce((a,r)=>a+r.vehicleCount,0),dist:rows.reduce((a,r)=>a+r.routeDistanceKm,0),avgCps:rows.length?(rows.reduce((a,r)=>a+r.cps,0)/rows.length).toFixed(1):"—"};
-  const sugg={vehicles:cmp.reduce((a,r)=>a+r.sugCount,0),dist:cmp.reduce((a,r)=>a+r.sugDist,0),avgCps:cmp.length?(cmp.reduce((a,r)=>a+r.sugCps,0)/cmp.length).toFixed(1):"—"};
-  const MK=({label,o,s})=>{const ch=String(o)!==String(s);return <div style={{padding:"12px 14px",borderRadius:8,border:`1.5px solid ${ch?C.warning:C.border}`,background:ch?"#fffbeb":"#f8fafc"}}><div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted,marginBottom:6}}>{label}</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18,fontWeight:800}}>{o}</span>{ch&&<><span style={{fontSize:14,color:C.muted}}></span><span style={{fontSize:18,fontWeight:800,color:C.warning}}>{s}</span></>}</div>{ch&&<div style={{fontSize:9,color:"#92400e",marginTop:3,fontWeight:700}}>SUGGESTED CHANGE</div>}</div>;};
+  // ── Route views ───────────────────────────────────────────────────────────
+  const origRouteView = buildRouteView(origRows, plan.scId, scvData, vmData);
+  const fbRouteView   = buildRouteView(fbDetailRows, plan.scId, scvData, vmData);
 
-  // Independent filter state per panel
-  const [filtersOrig, setFiltersOrig] = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
-  const [filtersFb,   setFiltersFb]   = useState({ lmdcSearch:"", route:"all", vehicleType:"all", zone:"all" });
+  // ── Plan metrics ──────────────────────────────────────────────────────────
+  const origMetrics = buildPlanMetrics(origRouteView);
+  const fbMetrics   = buildPlanMetrics(fbRouteView);
 
-  const mappableOrig = rows.filter(r => LMDC_MAP[r.lmdcCode]);
-  const mappableFb   = feedbackRows.filter(r => LMDC_MAP[r.lmdcCode]);
+  // ── Metric card helper ────────────────────────────────────────────────────
+  const MetricCard = ({ label, orig, fb, format }) => {
+    const o   = format ? format(orig) : orig;
+    const f   = format ? format(fb)   : fb;
+    const delta = typeof orig === "number" && typeof fb === "number" ? fb - orig : null;
+    const changed = String(o) !== String(f);
+    return (
+      <div style={{padding:"12px 14px",borderRadius:8,border:"1.5px solid "+(changed?C.warning:C.border),background:changed?"#fffbeb":"#f8fafc"}}>
+        <div style={{fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:C.muted,marginBottom:8}}>{label}</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:6,alignItems:"center"}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:2}}>DS Output</div>
+            <div style={{fontSize:16,fontWeight:800,color:"#1a2233"}}>{o}</div>
+          </div>
+          <div style={{fontSize:18,color:C.border}}>→</div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:2}}>Ops Feedback</div>
+            <div style={{fontSize:16,fontWeight:800,color:changed?C.warning:"#1a2233"}}>{f}</div>
+          </div>
+        </div>
+        {changed && delta !== null && (
+          <div style={{marginTop:6,fontSize:10,fontWeight:700,color:delta>0?"#16a34a":C.danger}}>
+            {delta > 0 ? "▲ +" : "▼ "}{format ? format(Math.abs(delta)) : Math.abs(delta).toLocaleString()}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ── Vehicle type breakdown comparison ─────────────────────────────────────
+  const allVehicleTypes = [...new Set([
+    ...Object.keys(origMetrics.vtBreak),
+    ...Object.keys(fbMetrics.vtBreak),
+  ])].sort();
+
+  // ── Simulated route comparison table (route by route) ─────────────────────
+  const allRouteCodes = [...new Set([
+    ...origRouteView.map(r => r.route_code),
+    ...fbRouteView.map(r => r.route_code),
+  ])].sort();
+
+  const [simTab, setSimTab] = useState("metrics");
 
   return (
-    <Modal open={open} onClose={onClose} title="Simulate Changes" width={1100}>
-      {/* ── KPI comparison ── */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:10}}>Plan-level comparison</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
-          <MK label="Total Vehicles" o={orig.vehicles} s={sugg.vehicles}/>
-          <MK label="Total Distance (km)" o={orig.dist} s={sugg.dist}/>
-          <MK label="Avg CPS (₹)" o={orig.avgCps} s={sugg.avgCps}/>
-        </div>
+    <Modal open={open} onClose={onClose} title="Simulate — DS Output vs Ops Feedback" width={1100}>
+
+      {/* ── Tab bar ── */}
+      <div style={{display:"flex",gap:0,borderBottom:"1px solid "+C.border,marginBottom:20}}>
+        {[["metrics","📊 Metrics"],["details","📋 Details View"],["route","🔀 Route View"]].map(([key,label])=>(
+          <button key={key} onClick={()=>setSimTab(key)}
+            style={{padding:"8px 16px",fontSize:12,fontWeight:600,border:"none",background:"none",cursor:"pointer",
+              color:simTab===key?C.primary:C.muted,
+              borderBottom:simTab===key?"2px solid "+C.primary:"2px solid transparent",marginBottom:-1}}>
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* ── Route-level CPS table ── */}
-      <div style={{marginBottom:20}}>
-        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:10}}>Route-level CPS comparison</div>
-        <div style={{borderRadius:10,border:`1px solid ${C.border}`,overflow:"hidden"}}>
-          <table style={{width:"100%",borderCollapse:"collapse"}}>
-            <thead><tr>{["Route","Vehicle","Count","Dist","CPS (₹)","Ops Lead Note","Status"].map((h,i)=><th key={i} style={{padding:"7px 10px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>1&&i<5?"right":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
-            <tbody>{cmp.map(r=><tr key={r.rowId} style={{background:r.changed?"#fffbeb":"#fff"}}>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:500}}>{r.segment}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>{r.changed&&r.sugVehicle!==r.vehicleType?<><span style={{textDecoration:"line-through",color:C.muted}}>{r.vehicleType}</span><span style={{fontWeight:700,color:C.warning,marginLeft:4}}> {r.sugVehicle}</span></>:r.vehicleType}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>{r.changed&&r.sugCount!==r.vehicleCount?<><span style={{textDecoration:"line-through",color:C.muted}}>{r.vehicleCount}</span><span style={{fontWeight:700,color:C.warning,marginLeft:4}}>{r.sugCount}</span></>:r.vehicleCount}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>{r.sugDist}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right",fontWeight:700}}>{r.changed&&r.sugCps!==r.cps?<><span style={{textDecoration:"line-through",color:C.muted,fontWeight:400}}>₹{r.cps}</span><span style={{color:C.warning,marginLeft:4}}>₹{r.sugCps}</span></>:<span>₹{r.cps}</span>}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,color:C.muted,maxWidth:140}}>{r.fbRow?.remark||"—"}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`}}>{r.changed?<Badge color="warning">⚠ Changed</Badge>:<Badge color="success">✓ No change</Badge>}</td>
-            </tr>)}</tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ── Side-by-side standard map panels ── */}
-      <div style={{marginBottom:8}}>
-        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:12}}>
-          SC-level route visualisation — standard map view
+      {/* ════════════════ METRICS TAB ════════════════ */}
+      {simTab==="metrics"&&<>
+        {/* Plan-level KPIs */}
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:12}}>Plan-level metrics</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+            <MetricCard label="Total Routes"     orig={origMetrics.totalRoutes}  fb={fbMetrics.totalRoutes}/>
+            <MetricCard label="Total Volume"     orig={origMetrics.totalVol}     fb={fbMetrics.totalVol}     format={v=>v.toLocaleString()}/>
+            <MetricCard label="Total Distance"   orig={origMetrics.totalDist}    fb={fbMetrics.totalDist}    format={v=>v.toFixed(1)+" km"}/>
+            <MetricCard label="Utilisation"      orig={origMetrics.utilisation}  fb={fbMetrics.utilisation}  format={v=>v+"%"}/>
+            <MetricCard label="Total Capacity"   orig={origMetrics.totalCap}     fb={fbMetrics.totalCap}     format={v=>v.toLocaleString()}/>
+          </div>
         </div>
 
+        {/* Vehicle type breakdown */}
+        <div style={{marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:.6,color:C.muted,marginBottom:12}}>Vehicle type breakdown</div>
+          <div style={{borderRadius:8,border:"1px solid "+C.border,overflow:"hidden"}}>
+            <table style={{width:"100%",borderCollapse:"collapse"}}>
+              <thead>
+                <tr style={{background:"#f8fafc"}}>
+                  {["Vehicle Type","Capacity","DS Output (routes)","Ops Feedback (routes)","Delta","Capacity Impact"].map((h,i)=>(
+                    <th key={i} style={{padding:"7px 12px",borderBottom:"1px solid "+C.border,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:.4,textAlign:i>1?"right":"left",whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {allVehicleTypes.map(vt=>{
+                  const oCnt  = origMetrics.vtBreak[vt] || 0;
+                  const fCnt  = fbMetrics.vtBreak[vt]  || 0;
+                  const delta = fCnt - oCnt;
+                  const cap   = resolveCapacity(plan.scId, vt, scvData, vmData);
+                  const capImpact = delta * cap;
+                  const isNew = oCnt === 0 && fCnt > 0;
+                  return (
+                    <tr key={vt} style={{background:isNew?"#f0fdf4":delta!==0?"#fffbeb":"#fff"}}>
+                      <td style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,fontWeight:600,fontSize:12}}>
+                        {vt}
+                        {isNew&&<span style={{marginLeft:6,padding:"1px 6px",borderRadius:99,fontSize:9,fontWeight:700,background:"#dcfce7",color:"#16a34a"}}>New in feedback</span>}
+                      </td>
+                      <td style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right",color:C.muted}}>{cap.toLocaleString()}</td>
+                      <td style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{oCnt || "—"}</td>
+                      <td style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,fontSize:11,textAlign:"right"}}>{fCnt || "—"}</td>
+                      <td style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,textAlign:"right"}}>
+                        {delta===0
+                          ? <span style={{color:C.muted,fontSize:11}}>—</span>
+                          : <span style={{fontSize:11,fontWeight:700,color:delta>0?"#16a34a":C.danger}}>
+                              {delta>0?"+":""}{delta}
+                            </span>}
+                      </td>
+                      <td style={{padding:"8px 12px",borderBottom:"1px solid "+C.border,textAlign:"right"}}>
+                        {capImpact===0
+                          ? <span style={{color:C.muted,fontSize:11}}>—</span>
+                          : <span style={{fontSize:11,fontWeight:700,color:capImpact>0?"#16a34a":C.danger}}>
+                              {capImpact>0?"+":""}{capImpact.toLocaleString()}
+                            </span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{marginTop:8,padding:"7px 12px",background:"#eef4ff",borderRadius:7,fontSize:11,color:C.primary,border:"1px solid #bfdbfe"}}>
+            ℹ Capacity for new vehicle types added in feedback is resolved via SC Vehicle Availability for {plan.scId}, falling back to Vehicle Master if not configured.
+          </div>
+        </div>
+      </>}
+
+      {/* ════════════════ DETAILS TAB ════════════════ */}
+      {simTab==="details"&&(
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
-          {/* ── Original plan ── */}
+          {/* Original */}
           <div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#1a2233",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
               <span style={{width:10,height:10,borderRadius:2,background:C.primary,display:"inline-block"}}/>
-              <span style={{fontSize:12,fontWeight:700,color:"#1a2233"}}>Original Plan</span>
-              <Badge small color="default">{mappableOrig.length} routes</Badge>
+              DS Output <span style={{color:C.muted,fontWeight:400}}>({origRows.length} rows)</span>
             </div>
-            <MapFilterBar rows={mappableOrig} filters={filtersOrig} setFilters={setFiltersOrig}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"start"}}>
-              <RouteMapSVG rows={mappableOrig} filters={filtersOrig}/>
-              <MapLegend rows={mappableOrig}/>
+            <div style={{borderRadius:8,border:"1px solid "+C.border,overflow:"hidden",maxHeight:400,overflowY:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead style={{position:"sticky",top:0}}>
+                  <tr style={{background:"#f8fafc"}}>
+                    {["LMDC","Route","TP","Zone","TAT","Vehicle","Distance"].map((h,i)=>(
+                      <th key={i} style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {origRows.map((r,i)=>(
+                    <tr key={i} style={{background:"#fff"}}>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:10,fontWeight:600}}>{r.lm_location||r.lmdcCode||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,color:C.primary,fontWeight:600}}>{r.route_code||r.segment||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{r.touch_point||r.tp||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10}}>{r.Zone||r.zone||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{r.tat||r.transitHours||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10}}>{r.vehicle_type||r.vehicleType||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{r.round_trip_distance||r.routeDistanceKm||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-
-          {/* ── Feedback plan ── */}
+          {/* Feedback */}
           <div>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:700,color:"#1a2233",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
               <span style={{width:10,height:10,borderRadius:2,background:C.warning,display:"inline-block"}}/>
-              <span style={{fontSize:12,fontWeight:700,color:"#1a2233"}}>Feedback Plan</span>
-              <Badge small color="warning">{cmp.filter(r=>r.changed).length} route{cmp.filter(r=>r.changed).length!==1?"s":""} changed</Badge>
+              Ops Feedback <span style={{color:C.muted,fontWeight:400}}>({fbDetailRows.length} rows · {fbDetailRows.filter(r=>r._changed).length} changed)</span>
             </div>
-            <MapFilterBar rows={mappableFb} filters={filtersFb} setFilters={setFiltersFb}/>
-            <div style={{display:"grid",gridTemplateColumns:"1fr auto",gap:10,alignItems:"start"}}>
-              <RouteMapSVG rows={mappableFb} filters={filtersFb}/>
-              <MapLegend rows={mappableFb}/>
+            <div style={{borderRadius:8,border:"1px solid "+C.border,overflow:"hidden",maxHeight:400,overflowY:"auto"}}>
+              <table style={{width:"100%",borderCollapse:"collapse"}}>
+                <thead style={{position:"sticky",top:0}}>
+                  <tr style={{background:"#f8fafc"}}>
+                    {["LMDC","Route","TP","Zone","TAT","Vehicle","Distance"].map((h,i)=>(
+                      <th key={i} style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {fbDetailRows.map((r,i)=>(
+                    <tr key={i} style={{background:r._changed?"#fffbeb":"#fff",boxShadow:r._changed?"inset 3px 0 0 "+C.warning:"none"}}>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:10,fontWeight:600}}>{r.lm_location||r.lmdcCode||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,color:C.primary,fontWeight:600}}>{r.route_code||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{r.touch_point||r.tp||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10}}>{r.Zone||r.zone||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{r.tat||r.transitHours||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,color:r._changed&&r.vehicle_type!==(r._fbRow?.suggestedVehicleType||r.vehicle_type)?C.warning:"inherit",fontWeight:r._changed?600:400}}>{r.vehicle_type||"—"}</td>
+                      <td style={{padding:"5px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{r.round_trip_distance||"—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
+      )}
 
-        <div style={{marginTop:10,padding:"8px 12px",background:C.warningLight,borderRadius:7,fontSize:11,color:"#92400e",display:"flex",alignItems:"center",gap:6}}>
-          <span>💡</span>
-          <span>Amber arcs on the feedback map indicate routes with suggested changes. Use the filters in each panel independently to focus on specific nodes, vehicle types, or zones.</span>
+      {/* ════════════════ ROUTE VIEW TAB ════════════════ */}
+      {simTab==="route"&&(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+          {[
+            {label:"DS Output", routes:origRouteView, col:C.primary},
+            {label:"Ops Feedback", routes:fbRouteView, col:C.warning},
+          ].map(({label,routes,col})=>(
+            <div key={label}>
+              <div style={{fontSize:12,fontWeight:700,color:"#1a2233",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+                <span style={{width:10,height:10,borderRadius:2,background:col,display:"inline-block"}}/>
+                {label} <span style={{color:C.muted,fontWeight:400}}>({routes.length} routes)</span>
+              </div>
+              <div style={{borderRadius:8,border:"1px solid "+C.border,overflow:"hidden",maxHeight:420,overflowY:"auto"}}>
+                <table style={{width:"100%",borderCollapse:"collapse"}}>
+                  <thead style={{position:"sticky",top:0}}>
+                    <tr style={{background:"#f8fafc"}}>
+                      {["Route","Nodes","Volume","Distance","Vehicle","Cap","Util%"].map((h,i)=>(
+                        <th key={i} style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:9,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>0?"right":"left",whiteSpace:"nowrap"}}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {routes.map((rt,i)=>{
+                      const isNew = label==="Ops Feedback" && !origRouteView.find(r=>r.route_code===rt.route_code);
+                      return (
+                        <tr key={i} style={{background:isNew?"#f0fdf4":"#fff",boxShadow:isNew?"inset 3px 0 0 "+C.accent:"none"}}>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:10,fontWeight:700,color:col}}>
+                            {rt.route_code}
+                            {isNew&&<span style={{marginLeft:4,fontSize:8,color:C.accent}}>NEW</span>}
+                          </td>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{rt.count_of_nodes}</td>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right",fontWeight:600}}>{rt.total_route_volume.toLocaleString()}</td>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right"}}>{rt.total_route_distance}</td>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:10}}>{rt.vehicle_type}</td>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,fontSize:10,textAlign:"right",color:C.muted}}>{rt.vehicle_capacity.toLocaleString()}</td>
+                          <td style={{padding:"6px 8px",borderBottom:"1px solid "+C.border,textAlign:"right"}}>
+                            <span style={{padding:"1px 6px",borderRadius:99,fontSize:9,fontWeight:700,background:utilBg(rt.utilisation),color:utilFg(rt.utilisation)}}>{rt.utilisation}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      )}
 
-      <div style={{display:"flex",justifyContent:"flex-end",marginTop:16}}><Btn variant="ghost" onClick={onClose}>Close</Btn></div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:20}}>
+        <Btn variant="ghost" onClick={onClose}>Close</Btn>
+      </div>
     </Modal>
   );
 }
@@ -3616,23 +3957,24 @@ function RowReviewTable({ plan, onUpdate, locked }) {
       </div>
       <div style={{overflowX:"auto"}}>
         <table style={{width:"100%",borderCollapse:"collapse"}}>
-          <thead><tr>{["Route","Vehicle","Count","Dist","CPS","Ops Lead Feedback","Decision","Remark","Action"].map((h,i)=><th key={i} style={{padding:"7px 10px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:i>1&&i<5?"right":"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
+          <thead><tr>{["Route Code","LMDC","Vehicle Type","Distance","Ops Lead Feedback","Decision","Remark","Action"].map((h,i)=><th key={i} style={{padding:"7px 10px",background:"#f8fafc",borderBottom:`1px solid ${C.border}`,fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",textAlign:"left",whiteSpace:"nowrap"}}>{h}</th>)}</tr></thead>
           <tbody>{rows.map(row=>{
             const best=getBestFb(row.rowId);
             const dec=decs[row.rowId];
             const isChg=best?.decision==="Needs Change";
             const rowBg=dec==="Accepted"?"#f0fdf4":dec==="Rejected"?"#fff5f5":isChg?"#fffbeb":"#fff";
             return <tr key={row.rowId} style={{background:rowBg}}>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,fontWeight:500,maxWidth:180}}>{row.segment}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11}}>
-                {isChg&&best.suggestedVehicleType!==row.vehicleType?<><span style={{color:C.muted,textDecoration:"line-through"}}>{row.vehicleType}</span><span style={{color:C.warning,fontWeight:700,marginLeft:4}}>{best.suggestedVehicleType}</span></>:row.vehicleType}
+              <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11,fontWeight:600,color:C.primary}}>{row.route_code||row.segment||"—"}</td>
+              <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontFamily:"monospace",fontSize:10}}>{row.lm_location||row.lmdcCode||"—"}</td>
+              <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11}}>
+                {isChg&&best.suggestedVehicleType&&best.suggestedVehicleType!==(row.vehicle_type||row.vehicleType)
+                  ?<><span style={{color:C.muted,textDecoration:"line-through"}}>{row.vehicle_type||row.vehicleType}</span><span style={{color:C.warning,fontWeight:700,marginLeft:4}}>{best.suggestedVehicleType}</span></>
+                  :(row.vehicle_type||row.vehicleType||"—")}
               </td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>
-                {isChg&&best.suggestedCount!==row.vehicleCount?<><span style={{color:C.muted,textDecoration:"line-through"}}>{row.vehicleCount}</span><span style={{color:C.warning,fontWeight:700,marginLeft:4}}>{best.suggestedCount}</span></>:row.vehicleCount}
-              </td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:11,textAlign:"right"}}>{row.routeDistanceKm}</td>
-              <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`,fontSize:12,textAlign:"right",fontWeight:700}}>
-                {isChg&&best.suggestedCps!==row.cps?<><span style={{color:C.muted,fontWeight:400,textDecoration:"line-through"}}>₹{row.cps}</span><span style={{color:C.warning,marginLeft:4}}>₹{best.suggestedCps}</span></>:<span>₹{row.cps}</span>}
+              <td style={{padding:"8px 10px",borderBottom:"1px solid "+C.border,fontSize:11}}>
+                {isChg&&best.suggestedDist&&best.suggestedDist!==(row.round_trip_distance||row.routeDistanceKm)
+                  ?<><span style={{color:C.muted,textDecoration:"line-through"}}>{row.round_trip_distance||row.routeDistanceKm}</span><span style={{color:C.warning,fontWeight:700,marginLeft:4}}>{best.suggestedDist}</span></>
+                  :(row.round_trip_distance||row.routeDistanceKm||"—")}
               </td>
               <td style={{padding:"8px 10px",borderBottom:`1px solid ${C.border}`}}>
                 {best?<span style={{padding:"2px 8px",borderRadius:99,fontSize:10,fontWeight:700,background:isChg?C.warningLight:C.accentLight,color:isChg?"#92400e":"#065f46"}}>{best.approverName} · {best.decision}</span>:<span style={{color:C.muted,fontSize:11}}>No feedback</span>}
@@ -3655,7 +3997,7 @@ function RowReviewTable({ plan, onUpdate, locked }) {
   );
 }
 
-function CentralPlannerAlignment({ alignments, setAlignments }) {
+function CentralPlannerAlignment({ alignments, setAlignments, vmData, scvData }) {
   const [selId,setSelId]=useState(alignments[0]?.id||null);
   const [activeFilter,setActiveFilter]=useState("all");
   const [simulateOpen,setSimulateOpen]=useState(false);
@@ -3808,7 +4150,7 @@ function CentralPlannerAlignment({ alignments, setAlignments }) {
         </div>
       </div>
 
-      <SimulateModal plan={plan} open={simulateOpen} onClose={()=>setSimulateOpen(false)}/>
+      <SimulateModal plan={plan} open={simulateOpen} onClose={()=>setSimulateOpen(false)} vmData={vmData} scvData={scvData}/>
       <FinaliseModal plan={plan} open={finaliseOpen} onClose={()=>setFinaliseOpen(false)} onConfirm={finalise}/>
       <SendBackModal plan={plan} open={sendBackOpen} onClose={()=>setSendBackOpen(false)} onConfirm={sendBack}/>
     </div>
@@ -4529,16 +4871,16 @@ function MapVisualisationTab({ designs, initialPlanId, clearInitialPlanId }) {
 }
 
 // ─── Review & Alignments shell ────────────────────────────────────────────
-function ReviewShell({ sub, setPage, designs, setDesigns, alignments, setAlignments, mapPlanId, setMapPlanId }) {
+function ReviewShell({ sub, setPage, designs, setDesigns, alignments, setAlignments, mapPlanId, setMapPlanId, vmData, scvData }) {
   const active=["review","operations-alignment","ops-lead","visualisation"].includes(sub)?sub:"review";
   return (
     <div style={{padding:"28px 32px",maxWidth:1200}}>
       <Breadcrumb items={[{label:"Dashboard",page:"dashboard"},{label:"Design Review & Alignments"}]} setPage={setPage}/>
       <div style={{marginBottom:20}}><h1 style={{fontSize:22,fontWeight:800}}>Design Review & Alignments</h1><p style={{color:C.muted,marginTop:4,fontSize:13}}>Review plans, check guardrail breaches, accept and manage Ops Alignment.</p></div>
       <Tabs tabs={[{key:"review",label:"Design Review"},{key:"operations-alignment",label:"Central Planner"},{key:"ops-lead",label:"👤 Ops Lead View"},{key:"visualisation",label:"🗺️ Map Visualisation"}]} active={active} onChange={k=>setPage(`sanctity-controls/${k}`)}/>
-      {active==="review"&&<DesignReview designs={designs} setDesigns={setDesigns} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId}/>}
-      {active==="operations-alignment"&&<CentralPlannerAlignment alignments={alignments} setAlignments={setAlignments}/>}
-      {active==="ops-lead"&&<OpsLeadAlignment alignments={alignments} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId}/>}
+      {active==="review"&&<DesignReview designs={designs} setDesigns={setDesigns} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId} vmData={vmData} scvData={scvData}/>}
+      {active==="operations-alignment"&&<CentralPlannerAlignment alignments={alignments} setAlignments={setAlignments} vmData={vmData} scvData={scvData}/>}
+      {active==="ops-lead"&&<OpsLeadAlignment alignments={alignments} setAlignments={setAlignments} setPage={setPage} setMapPlanId={setMapPlanId} vmData={vmData} scvData={scvData}/>}
       {active==="visualisation"&&<MapVisualisationTab designs={designs} initialPlanId={mapPlanId} clearInitialPlanId={()=>setMapPlanId(null)}/>}
     </div>
   );
@@ -4548,8 +4890,8 @@ function ReviewShell({ sub, setPage, designs, setDesigns, alignments, setAlignme
 function Router({ page, setPage, appState }) {
   const [top,sub]=[page.split("/")[0],page.split("/").slice(1).join("/")];
   if(page==="dashboard")return <Dashboard setPage={setPage}/>;
-  if(top==="design-inputs")return <DesignInputs sub={sub} setPage={setPage}/>;
-  if(top==="design-creation")return <DesignCreation sub={sub} setPage={setPage} addDesign={appState.addDesign}/>;
+  if(top==="design-inputs")return <DesignInputs sub={sub} setPage={setPage} vmData={appState.vmData} setVmData={appState.setVmData} scvData={appState.scvData} setScvData={appState.setScvData}/>;
+  if(top==="design-creation")return <DesignCreation sub={sub} setPage={setPage} addDesign={appState.addDesign} vmData={appState.vmData} scvData={appState.scvData}/>;
   if(top==="sanctity-controls")return <ReviewShell sub={sub} setPage={setPage} {...appState}/>;
   return <Dashboard setPage={setPage}/>;
 }
@@ -4557,11 +4899,15 @@ function Router({ page, setPage, appState }) {
 // ─── App root ─────────────────────────────────────────────────────────────
 function App() {
   const [page,setPage]       = useState("dashboard");
-  const [designs,setDesigns] = useState(DESIGN_SEEDS);
+  const [designs,setDesigns]     = useState(DESIGN_SEEDS);
   const [alignments,setAlignments] = useState(INIT_ALIGNMENTS);
   const [mapPlanId,setMapPlanId]   = useState(null);
 
-  // Bridge: RLH completed run  designs list
+  // ── Lifted master data (shared across Design Creation + Design Review) ──
+  const [vmData,  setVmData]  = useState(VM_SEED);
+  const [scvData, setScvData] = useState(SCV_SEED);
+
+  // Bridge: RLH completed run → designs list
   const addDesign = useCallback(newDesign => {
     setDesigns(prev => {
       const exists = prev.find(d => d.id === newDesign.id);
@@ -4569,7 +4915,7 @@ function App() {
     });
   }, []);
 
-  const appState = { designs, setDesigns, alignments, setAlignments, mapPlanId, setMapPlanId };
+  const appState = { designs, setDesigns, alignments, setAlignments, mapPlanId, setMapPlanId, vmData, setVmData, scvData, setScvData };
 
   return (
     <div style={{display:"flex",height:"100vh",overflow:"hidden",background:"#f3f5f9",fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif",fontSize:14,color:"#1a2233"}}>
